@@ -15,9 +15,9 @@ class TeslaSettings(BrandSettings):
     super().__init__()
     self.coop_steering_toggle = toggle_item_sp(tr("Cooperative Steering"), "", param="TeslaCoopSteering")
     self.mads_screen_button = multiple_button_item_sp(
-      title=lambda: tr("MADS Screen Activation"),
+      title=lambda: tr("MADS Screen Button"),
       description="",
-      buttons=[lambda: tr("Off"), lambda: tr("3-Finger"), lambda: tr("4-Finger"), lambda: tr("5-Finger")],
+      buttons=[lambda: tr("Off"), lambda: tr("3 Finger"), lambda: tr("4 Finger"), lambda: tr("5 Finger")],
       param="TeslaMadsScreenButton",
       inline=False,
     )
@@ -46,6 +46,9 @@ class TeslaSettings(BrandSettings):
       f"{tr('Selecting a higher finger count may reduce accidental activations.')}<br><br>" +
       f"<b>{tr('Note: Setting this to Off will reset your MADS settings to default.')}</b>"
     )
+    mads_screen_button_desc = tr("Use a multi-finger press on the infotainment display as a MADS button.\n" +
+                                 "This allows the use of full MADS functionality when enabled.\n" +
+                                 "<b>Note: Setting this to Off may reset your MADS settings to default.</b>")
     if not ui_state.is_offroad():
       mads_screen_button_disabled_msg = tr("Enable \"Always Offroad\" in Device panel, or turn vehicle off to change.")
       mads_screen_button_desc = f"<b>{mads_screen_button_disabled_msg}</b><br><br>{mads_screen_button_desc}"
