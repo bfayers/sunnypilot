@@ -151,7 +151,7 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
       self.launch_armed = True
     elif v_ego > LAUNCH_DISARM_SPEED:
       self.launch_armed = False
-    if (self.launch_armed and sm['selfdriveState'].experimentalMode and not output_should_stop_e2e and
+    if (self.launch_armed and self.is_e2e(sm) and not output_should_stop_e2e and
         np.interp(LAUNCH_COMMIT_T, T_IDXS_MPC, model_v) > LAUNCH_DISARM_SPEED):
       t_cut = min(float(T_IDXS_MPC[np.argmax(model_v > LAUNCH_MOVING_SPEED)]), LAUNCH_COMMIT_T)
       t_shifted = T_IDXS_MPC + t_cut
