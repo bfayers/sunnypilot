@@ -127,9 +127,6 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     # PCM cruise speed may be updated a few cycles later, check if initialized
     reset_state = reset_state or not v_cruise_initialized
 
-    # No change cost when user is controlling the speed, or when standstill
-    prev_accel_constraint = not (reset_state or sm['carState'].standstill)
-
     # Cruise speed limit: target acceleration to converge to the set speed, jerk-limited
     if force_slow_decel:
       v_cruise = 0.0
@@ -167,7 +164,7 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     if force_slow_decel:
       v_cruise = 0.0
 
-    self.mpc.set_weights(prev_accel_constraint, personality=sm['selfdriveState'].personality)
+    self.mpc.set_weights(personality=sm['selfdriveState'].personality)
     self.mpc.set_cur_state(self.v_desired_filter.x, self.a_desired)
     mpc_a_max = E2E_MAX_ACCEL if experimental_mode else ACCEL_MAX
     self.mpc.update(sm['radarState'], personality=sm['selfdriveState'].personality, a_max=mpc_a_max)
