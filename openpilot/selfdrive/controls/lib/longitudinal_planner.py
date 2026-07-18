@@ -133,7 +133,6 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
 
     long_control_off = sm['controlsState'].longControlState == LongCtrlState.off
     force_slow_decel = sm['controlsState'].forceDecel
-    experimental_mode = sm['selfdriveState'].experimentalMode
 
     # Reset current state when not engaged, or user is controlling the speed
     reset_state = long_control_off if self.CP.openpilotLongitudinalControl else not sm['selfdriveState'].enabled
@@ -147,10 +146,10 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
       v_cruise = 0.0
     v_err = v_cruise - v_ego
     steer_angle_without_offset = sm['carState'].steeringAngleDeg - sm['liveParameters'].angleOffsetDeg
-    self.a_cruise, a_cruise_limit = get_cruise_accel(experimental_mode, v_ego, v_err, force_slow_decel,
+    self.a_cruise, a_cruise_limit = get_cruise_accel(self.is_e2e(sm), v_ego, v_err, force_slow_decel,
                                                      self.a_cruise, steer_angle_without_offset, self.CP, self.dt)
 
-    max_accel = E2E_MAX_ACCEL if experimental_mode else get_max_accel(v_ego)
+    max_accel = E2E_MAX_ACCEL if self.is_e2e(sm) else get_max_accel(v_ego)
     accel_clip = [ACCEL_MIN, min(max_accel, a_cruise_limit)]
 
     if reset_state:
@@ -177,7 +176,7 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     has_lead = sm['radarState'].leadOne.present
     self.mpc.set_weights(personality=sm['selfdriveState'].personality, has_lead=has_lead)
     self.mpc.set_cur_state(self.v_desired_filter.x, self.a_desired)
-    mpc_a_max = E2E_MAX_ACCEL if experimental_mode else ACCEL_MAX
+    mpc_a_max = E2E_MAX_ACCEL if self.is_e2e(sm) else ACCEL_MAX
     self.mpc.update(sm['radarState'], personality=sm['selfdriveState'].personality, a_max=mpc_a_max)
 
     self.v_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.v_solution)
