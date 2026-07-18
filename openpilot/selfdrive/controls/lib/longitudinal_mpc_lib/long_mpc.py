@@ -303,7 +303,7 @@ class LongitudinalMpc:
     lead_xv = self.extrapolate_lead(x_lead, v_lead, a_lead, a_lead_tau)
     return lead_xv
 
-  def update(self, radarstate, personality=log.LongitudinalPersonality.standard, a_max=ACCEL_MAX):
+  def update(self, radarstate, personality=log.LongitudinalPersonality.standard):
     t_follow = get_T_FOLLOW(personality)
     v_ego = self.x0[1]
 
@@ -333,7 +333,7 @@ class LongitudinalMpc:
     self.solver.set(N, "yref", self.yref[N][:COST_E_DIM])
 
     self.params[:,0] = ACCEL_MIN
-    self.params[:,1] = a_max
+    self.params[:,1] = ACCEL_MAX
     self.params[:,2] = np.min(x_obstacles, axis=1)
     self.params[:,3] = t_follow
     self.params[:,4] = LEAD_DANGER_FACTOR
