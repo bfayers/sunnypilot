@@ -176,7 +176,7 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
       t_shifted = T_IDXS_MPC + t_cut
       v_shifted = np.interp(t_shifted, T_IDXS_MPC, model_v)
       a_shifted = np.interp(t_shifted, T_IDXS_MPC, model_a)
-      a_launch = get_accel_from_plan(v_shifted, a_shifted, T_IDXS_MPC, action_t=action_t, vEgoStopping=self.CP.vEgoStopping)[0]
+      a_launch = get_accel_from_plan(v_shifted, a_shifted, T_IDXS_MPC, action_t=action_t)[0]
       a_launch_max = np.interp(v_ego, [LAUNCH_MOVING_SPEED, LAUNCH_DISARM_SPEED], [LAUNCH_MAX_ACCEL, 0.])
       output_a_target_e2e = max(output_a_target_e2e, min(a_launch, a_launch_max))
 
