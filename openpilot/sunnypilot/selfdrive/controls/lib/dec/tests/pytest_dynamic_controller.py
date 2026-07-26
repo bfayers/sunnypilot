@@ -3,12 +3,12 @@ import pytest
 from openpilot.sunnypilot.selfdrive.controls.lib.dec.dec import DynamicExperimentalController
 
 class MockLeadOne:
-  def __init__(self, status=0.0):
-    self.status = status
+  def __init__(self, present=False):
+    self.present = present
 
 class MockRadarState:
-  def __init__(self, status=0.0):
-    self.leadOne = MockLeadOne(status=status)
+  def __init__(self, present=False):
+    self.leadOne = MockLeadOne(present=present)
 
 class MockCarState:
   def __init__(self, vEgo=0.0, vCruise=0.0, standstill=False):
@@ -26,17 +26,37 @@ class MockSelfDriveState:
   def __init__(self, experimentalMode=False):
     self.experimentalMode = experimentalMode
 
+class MockLiveMapDataSP:
+  def __init__(self, valid=False, speed_limit=0.0):
+    self.speedLimitValid = valid
+    self.speedLimit = speed_limit
+
 class MockParams:
+  def __init__(self, mode=1, map_max_speed=60, is_metric=False):
+    self.mode = mode
+    self.map_max_speed = map_max_speed
+    self.is_metric = is_metric
+
   def get_bool(self, name):
+    if name == "IsMetric":
+      return self.is_metric
     return True
+
+  def get(self, name, return_default=False):
+    if name == "DynamicExperimentalControl":
+      return self.mode
+    if name == "DynamicExperimentalControlMapMaxSpeed":
+      return self.map_max_speed
+    return None
 
 @pytest.fixture
 def default_sm():
   sm = {
     'carState': MockCarState(vEgo=10.0, vCruise=20.0),
-    'radarState': MockRadarState(status=1.0),
+    'radarState': MockRadarState(present=True),
     'modelV2': MockModelData(valid=True),
     'selfdriveState': MockSelfDriveState(experimentalMode=True),
+    'liveMapDataSP': MockLiveMapDataSP(valid=False, speed_limit=0.0),
   }
   return sm
 
@@ -92,3 +112,45 @@ def test_radarless_slowdown_triggers_blended(mock_cp, mock_mpc, default_sm):
     controller.update(default_sm)
 
   assert controller.mode() == "blended"
+
+def test_dec_map_unmapped_road_triggers_blended(mock_cp, mock_mpc, default_sm):
+  params = MockParams(mode=2, map_max_speed=60, is_metric=False)
+  controller = DynamicExperimentalController(mock_cp, mock_mpc, params=params)
+
+  default_sm['liveMapDataSP'] = MockLiveMapDataSP(valid=False, speed_limit=0.0)
+  controller.update(default_sm)
+  assert controller.mode() == "blended"
+
+def test_dec_map_below_threshold_triggers_blended(mock_cp, mock_mpc, default_sm):
+  params = MockParams(mode=2, map_max_speed=60, is_metric=False)
+  controller = DynamicExperimentalController(mock_cp, mock_mpc, params=params)
+
+  # 45 mph in m/s is ~20.11 m/s
+  default_sm['liveMapDataSP'] = MockLiveMapDataSP(valid=True, speed_limit=20.1168)
+  controller.update(default_sm)
+  assert controller.mode() == "blended"
+
+def test_dec_map_above_threshold_triggers_acc(mock_cp, mock_mpc, default_sm):
+  params = MockParams(mode=2, map_max_speed=60, is_metric=False)
+  controller = DynamicExperimentalController(mock_cp, mock_mpc, params=params)
+
+  # 65 mph in m/s is ~29.05 m/s
+  default_sm['liveMapDataSP'] = MockLiveMapDataSP(valid=True, speed_limit=29.0576)
+  controller.update(default_sm)
+  assert controller.mode() == "acc"
+
+def test_dec_map_custom_threshold(mock_cp, mock_mpc, default_sm):
+  # Custom threshold = 45 mph
+  params = MockParams(mode=2, map_max_speed=45, is_metric=False)
+  controller = DynamicExperimentalController(mock_cp, mock_mpc, params=params)
+
+  # 40 mph limit -> blended
+  default_sm['liveMapDataSP'] = MockLiveMapDataSP(valid=True, speed_limit=17.8816)
+  controller.update(default_sm)
+  assert controller.mode() == "blended"
+
+  # 50 mph limit -> acc
+  default_sm['liveMapDataSP'] = MockLiveMapDataSP(valid=True, speed_limit=22.352)
+  controller.update(default_sm)
+  assert controller.mode() == "acc"
+
