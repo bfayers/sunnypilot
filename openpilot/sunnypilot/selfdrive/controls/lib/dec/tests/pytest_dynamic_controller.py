@@ -17,9 +17,10 @@ class MockCarState:
     self.standstill = standstill
 
 class MockModelData:
-  def __init__(self, valid=True):
+  def __init__(self, valid=True, stop=False):
     size = 33 if valid else 10  # incomplete if invalid
-    self.position = type("Pos", (), {"x": [0.0] * size})()
+    pos_x = [0.0] * size if stop else [100.0] * size
+    self.position = type("Pos", (), {"x": pos_x})()
     self.orientation = type("Ori", (), {"x": [0.0] * size})()
 
 class MockSelfDriveState:
@@ -88,7 +89,7 @@ def test_initial_mode_is_acc(mock_cp, mock_mpc):
 def test_standstill_triggers_blended(mock_cp, mock_mpc, default_sm):
   controller = DynamicExperimentalController(mock_cp, mock_mpc, params=MockParams())
   default_sm['carState'].standstill = True
-  for _ in range(10):
+  for _ in range(15):
     controller.update(default_sm)
   assert controller.mode() == "blended"
 
@@ -118,7 +119,8 @@ def test_dec_map_unmapped_road_triggers_blended(mock_cp, mock_mpc, default_sm):
   controller = DynamicExperimentalController(mock_cp, mock_mpc, params=params)
 
   default_sm['liveMapDataSP'] = MockLiveMapDataSP(valid=False, speed_limit=0.0)
-  controller.update(default_sm)
+  for _ in range(10):
+    controller.update(default_sm)
   assert controller.mode() == "blended"
 
 def test_dec_map_below_threshold_triggers_blended(mock_cp, mock_mpc, default_sm):
@@ -127,7 +129,8 @@ def test_dec_map_below_threshold_triggers_blended(mock_cp, mock_mpc, default_sm)
 
   # 45 mph in m/s is ~20.11 m/s
   default_sm['liveMapDataSP'] = MockLiveMapDataSP(valid=True, speed_limit=20.1168)
-  controller.update(default_sm)
+  for _ in range(10):
+    controller.update(default_sm)
   assert controller.mode() == "blended"
 
 def test_dec_map_above_threshold_triggers_acc(mock_cp, mock_mpc, default_sm):
@@ -136,7 +139,8 @@ def test_dec_map_above_threshold_triggers_acc(mock_cp, mock_mpc, default_sm):
 
   # 65 mph in m/s is ~29.05 m/s
   default_sm['liveMapDataSP'] = MockLiveMapDataSP(valid=True, speed_limit=29.0576)
-  controller.update(default_sm)
+  for _ in range(10):
+    controller.update(default_sm)
   assert controller.mode() == "acc"
 
 def test_dec_map_custom_threshold(mock_cp, mock_mpc, default_sm):
@@ -146,11 +150,49 @@ def test_dec_map_custom_threshold(mock_cp, mock_mpc, default_sm):
 
   # 40 mph limit -> blended
   default_sm['liveMapDataSP'] = MockLiveMapDataSP(valid=True, speed_limit=17.8816)
-  controller.update(default_sm)
+  for _ in range(10):
+    controller.update(default_sm)
   assert controller.mode() == "blended"
 
   # 50 mph limit -> acc
   default_sm['liveMapDataSP'] = MockLiveMapDataSP(valid=True, speed_limit=22.352)
-  controller.update(default_sm)
+  for _ in range(10):
+    controller.update(default_sm)
   assert controller.mode() == "acc"
+
+def test_dec_map_fcw_overrides_to_blended(mock_cp, mock_mpc, default_sm):
+  params = MockParams(mode=2, map_max_speed=60, is_metric=False)
+  controller = DynamicExperimentalController(mock_cp, mock_mpc, params=params)
+
+  # Highway speed limit (65 mph) normally ACC
+  default_sm['liveMapDataSP'] = MockLiveMapDataSP(valid=True, speed_limit=29.0576)
+  mock_mpc.crash_cnt = 1  # FCW active
+  for _ in range(2):
+    controller.update(default_sm)
+
+  assert controller.mode() == "blended"
+
+def test_dec_map_standstill_overrides_to_blended(mock_cp, mock_mpc, default_sm):
+  params = MockParams(mode=2, map_max_speed=60, is_metric=False)
+  controller = DynamicExperimentalController(mock_cp, mock_mpc, params=params)
+
+  default_sm['liveMapDataSP'] = MockLiveMapDataSP(valid=True, speed_limit=29.0576)
+  default_sm['carState'].standstill = True
+  for _ in range(10):
+    controller.update(default_sm)
+
+  assert controller.mode() == "blended"
+
+def test_dec_map_high_urgency_slowdown_overrides_to_blended(mock_cp, mock_mpc, default_sm):
+  params = MockParams(mode=2, map_max_speed=60, is_metric=False)
+  controller = DynamicExperimentalController(mock_cp, mock_mpc, params=params)
+
+  default_sm['liveMapDataSP'] = MockLiveMapDataSP(valid=True, speed_limit=29.0576)
+  default_sm['modelV2'] = MockModelData(valid=True, stop=True)
+
+  for _ in range(2):
+    controller.update(default_sm)
+
+  assert controller.mode() == "blended"
+
 
