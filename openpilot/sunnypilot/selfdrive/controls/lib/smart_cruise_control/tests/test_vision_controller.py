@@ -206,4 +206,14 @@ class TestSmartCruiseControlVision(OpenpilotTestCase):
       assert self.scc_v.max_pred_lat_acc < th
       assert self.scc_v.state == VisionState.enabled
 
+  def test_scc_disabled_when_e2e_mode_is_active(self):
+    from openpilot.sunnypilot.selfdrive.controls.lib.smart_cruise_control.smart_cruise_control import SmartCruiseControl
+    scc = SmartCruiseControl()
+    scc.update(self.sm, long_enabled=True, long_override=False, v_ego=20.0, a_ego=0.0, v_cruise=30.0, e2e_mode=True)
+    assert not scc.vision.is_enabled
+    assert not scc.vision.is_active
+    assert not scc.map.is_enabled
+    assert not scc.map.is_active
+
+
   # TODO-SP: mock modelV2 data to test other states
