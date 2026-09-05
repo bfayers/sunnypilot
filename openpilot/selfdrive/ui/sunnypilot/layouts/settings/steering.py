@@ -59,7 +59,7 @@ class SteeringLayout(Widget):
     self._lane_centering_toggle = toggle_item_sp(
       param="LaneCentering",
       title=lambda: tr("Enable Lane Centering"),
-      description=lambda: tr("Experimentally bias the model command toward the detected lane center. Requires two confident lane lines and remains subject to normal curvature and jerk limits."),
+      description=lambda: tr("Experimentally bias the model command toward the detected lane center."),
     )
     self._lane_centering_settings_button = simple_button_item_sp(
       button_text=lambda: tr("Customize Lane Centering"),
