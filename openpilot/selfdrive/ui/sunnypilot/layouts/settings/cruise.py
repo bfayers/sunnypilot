@@ -9,7 +9,7 @@ from enum import IntEnum
 from openpilot.selfdrive.ui.sunnypilot.layouts.settings.cruise_sub_layouts.speed_limit_settings import SpeedLimitSettingsLayout
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.multilang import tr, tr_noop
-from openpilot.system.ui.sunnypilot.widgets.list_view import toggle_item_sp, option_item_sp, simple_button_item_sp
+from openpilot.system.ui.sunnypilot.widgets.list_view import toggle_item_sp, option_item_sp, simple_button_item_sp, multiple_button_item_sp
 from openpilot.system.ui.widgets import Widget
 from openpilot.system.ui.widgets.scroller_tici import Scroller
 
@@ -57,6 +57,11 @@ class CruiseLayout(Widget):
       description=tr("Use map data to estimate the appropriate speed to drive through turns ahead."),
       param="SmartCruiseControlMap")
 
+    self.scc_disable_on_blended_toggle = toggle_item_sp(
+      title=tr("Smart Cruise Control - Disable in Experimental Mode"),
+      description=tr("Automatically disable Smart Cruise Control (Vision and Map) when Experimental Mode (blended) is active."),
+      param="SmartCruiseControlDisableOnBlended")
+
     self.custom_acc_toggle = toggle_item_sp(
       title=tr("Custom ACC Speed Increments"),
       description="",
@@ -82,16 +87,31 @@ class CruiseLayout(Widget):
       callback=lambda: self._set_current_panel(PanelType.SLA)
     )
 
-    self.dec_toggle = toggle_item_sp(
-      title=tr("Enable Dynamic Experimental Control"),
+    self.dec_option = multiple_button_item_sp(
+      title=tr("Dynamic Experimental Control"),
       description=tr("Enable toggle to allow the model to determine when to use sunnypilot ACC or sunnypilot End to End Longitudinal."),
-      param="DynamicExperimentalControl")
+      buttons=[tr("Off"), tr("Dynamic"), tr("Dynamic Map")],
+      button_width=240,
+      param="DynamicExperimentalControl",
+      inline=False)
+
+    self.dec_map_max_speed_option = option_item_sp(
+      param="DynamicExperimentalControlMapMaxSpeed",
+      title=lambda: tr("Dynamic Experimental Control Map - Max Speed"),
+      min_value=20,
+      max_value=120,
+      value_change_step=5,
+      description=lambda: tr("Maximum road speed limit to allow End to End Longitudinal mode in Dynamic Map mode."),
+      label_callback=lambda speed: f'{speed} {"km/h" if ui_state.is_metric else "mph"}',
+    )
 
     items = [
       self.icbm_toggle,
-      self.dec_toggle,
+      self.dec_option,
+      self.dec_map_max_speed_option,
       self.scc_v_toggle,
       self.scc_m_toggle,
+      self.scc_disable_on_blended_toggle,
       self.custom_acc_toggle,
       self.custom_acc_short_increment,
       self.custom_acc_long_increment,
@@ -110,6 +130,7 @@ class CruiseLayout(Widget):
     self._scroller.show_event()
     self.icbm_toggle.show_description(True)
     self.custom_acc_toggle.show_description(True)
+    self.dec_option.show_description(True)
 
   def _set_current_panel(self, panel: PanelType):
     self._current_panel = panel
@@ -142,20 +163,29 @@ class CruiseLayout(Widget):
           self.icbm_toggle.set_description(new_desc)
           self.icbm_toggle.show_description(True)
 
+      dec_val = ui_state.params.get_int("DynamicExperimentalControl")
+      self.dec_map_max_speed_option.set_visible(dec_val == 2)
+
       if has_long or has_icbm:
         self.custom_acc_toggle.action_item.set_enabled(((has_long and not ui_state.CP.pcmCruise) or has_icbm) and ui_state.is_offroad())
-        self.dec_toggle.action_item.set_enabled(has_long)
+        self.dec_option.action_item.set_enabled(has_long)
+        self.dec_map_max_speed_option.action_item.set_enabled(has_long)
         self.scc_v_toggle.action_item.set_enabled(True)
         self.scc_m_toggle.action_item.set_enabled(True)
+        self.scc_disable_on_blended_toggle.action_item.set_enabled(True)
       else:
         ui_state.params.remove("CustomAccIncrementsEnabled")
         ui_state.params.remove("DynamicExperimentalControl")
+        ui_state.params.remove("DynamicExperimentalControlMapMaxSpeed")
         ui_state.params.remove("SmartCruiseControlVision")
         ui_state.params.remove("SmartCruiseControlMap")
+        ui_state.params.remove("SmartCruiseControlDisableOnBlended")
         self.custom_acc_toggle.action_item.set_enabled(False)
-        self.dec_toggle.action_item.set_enabled(False)
+        self.dec_option.action_item.set_enabled(False)
+        self.dec_map_max_speed_option.action_item.set_enabled(False)
         self.scc_v_toggle.action_item.set_enabled(False)
         self.scc_m_toggle.action_item.set_enabled(False)
+        self.scc_disable_on_blended_toggle.action_item.set_enabled(False)
 
     else:
       has_icbm = has_long = False
