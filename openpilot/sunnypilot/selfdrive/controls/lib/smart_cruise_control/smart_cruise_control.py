@@ -15,12 +15,12 @@ class SmartCruiseControl:
     self.vision = SmartCruiseControlVision()
     self.map = SmartCruiseControlMap()
     self.params = Params()
-    self.disable_on_blended = self.params.get_bool("SmartCruiseControlDisableOnBlended")
+    self.disable_on_blended = bool(self.params.get("SmartCruiseControlDisableOnBlended", return_default=True))
     self.param_read_counter = 0
 
   def update_params(self) -> None:
     if self.param_read_counter % 50 == 0:
-      self.disable_on_blended = self.params.get_bool("SmartCruiseControlDisableOnBlended")
+      self.disable_on_blended = bool(self.params.get("SmartCruiseControlDisableOnBlended", return_default=True))
     self.param_read_counter += 1
 
   def update(self, sm: messaging.SubMaster, long_enabled: bool, long_override: bool,
