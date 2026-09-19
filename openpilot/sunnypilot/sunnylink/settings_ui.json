@@ -1072,6 +1072,46 @@
                   ]
                 }
               ]
+            },
+            {
+              "key": "SmartCruiseControlDisableOnBlended",
+              "widget": "toggle",
+              "title": "Disable in Experimental Mode",
+              "description": "Automatically disable Smart Cruise Control (Vision and Map) when Experimental Mode (blended) is active.",
+              "visibility": [
+                {
+                  "type": "any",
+                  "conditions": [
+                    {
+                      "type": "capability",
+                      "field": "has_longitudinal_control",
+                      "equals": true
+                    },
+                    {
+                      "type": "capability",
+                      "field": "has_icbm",
+                      "equals": true
+                    }
+                  ]
+                }
+              ],
+              "enablement": [
+                {
+                  "type": "any",
+                  "conditions": [
+                    {
+                      "type": "capability",
+                      "field": "has_longitudinal_control",
+                      "equals": true
+                    },
+                    {
+                      "type": "capability",
+                      "field": "has_icbm",
+                      "equals": true
+                    }
+                  ]
+                }
+              ]
             }
           ]
         }
