@@ -1,12 +1,9 @@
 import numpy as np
-from openpilot.common.constants import CV
 from openpilot.common.realtime import DT_MDL
 
 ACCEL_BOOST_MAX = 0.2
 ACCEL_BOOST_RATE = 0.025
-ACCEL_BOOST_DECAY_RATE = 0.1
 ACCEL_BOOST_PER_OVERRIDE = 0.05
-ACCEL_BOOST_MIN_SPEED = 10 * CV.MPH_TO_MS
 
 
 class AccelBoost:
@@ -15,7 +12,7 @@ class AccelBoost:
     self.value = 0.0
     self.override_boost = 0.0
 
-  def update(self, enabled, gas_pressed, v_ego, model_limited, active=None):
+  def update(self, enabled, gas_pressed, model_limited, active=None):
     if active is None:
       active = enabled
 
@@ -24,8 +21,6 @@ class AccelBoost:
 
     if not active:
       self.value = 0.0
-    elif v_ego < ACCEL_BOOST_MIN_SPEED:
-      self.value = max(0.0, self.value - ACCEL_BOOST_DECAY_RATE * self.dt)
     elif enabled and gas_pressed and model_limited:
       increase = min(ACCEL_BOOST_RATE * self.dt, ACCEL_BOOST_PER_OVERRIDE - self.override_boost, ACCEL_BOOST_MAX - self.value)
       self.value += increase
