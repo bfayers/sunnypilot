@@ -153,7 +153,7 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     if 'selfdriveStateSP' in getattr(sm, 'data', sm):
       mads_enabled = getattr(getattr(sm['selfdriveStateSP'], 'mads', None), 'enabled', False)
     active = sm['selfdriveState'].enabled or mads_enabled
-    self.accel_boost.update(sm['selfdriveState'].enabled, sm['carState'].gasPressed, v_ego, model_limited, active=active)
+    self.accel_boost.update(sm['selfdriveState'].enabled, sm['carState'].gasPressed, model_limited, active=active)
     output_a_target_e2e = self.accel_boost.apply(output_a_target_e2e)
 
     candidates = [(output_a_target_mpc, self.mpc.source, output_should_stop_mpc),
