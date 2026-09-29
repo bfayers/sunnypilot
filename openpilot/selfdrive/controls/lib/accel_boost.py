@@ -15,15 +15,18 @@ class AccelBoost:
     self.value = 0.0
     self.override_boost = 0.0
 
-  def update(self, enabled, gas_pressed, v_ego, model_limited):
+  def update(self, enabled, gas_pressed, v_ego, model_limited, active=None):
+    if active is None:
+      active = enabled
+
     if not enabled or not gas_pressed:
       self.override_boost = 0.0
 
-    if not enabled:
+    if not active:
       self.value = 0.0
     elif v_ego < ACCEL_BOOST_MIN_SPEED:
       self.value = max(0.0, self.value - ACCEL_BOOST_DECAY_RATE * self.dt)
-    elif gas_pressed and model_limited:
+    elif enabled and gas_pressed and model_limited:
       increase = min(ACCEL_BOOST_RATE * self.dt, ACCEL_BOOST_PER_OVERRIDE - self.override_boost, ACCEL_BOOST_MAX - self.value)
       self.value += increase
       self.override_boost += increase
