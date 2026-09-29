@@ -147,9 +147,13 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
                                      accel_coast, self.allow_throttle)
     cruise_should_stop = should_stop(v_ego, self.a_cruise)
 
-    model_limited = (sm['selfdriveState'].experimentalMode and
+    model_limited = (is_e2e and
                      self.accel_boost.apply(output_a_target_e2e) < min(output_a_target_mpc, self.a_cruise))
-    self.accel_boost.update(sm['selfdriveState'].enabled, sm['carState'].gasPressed, v_ego, model_limited)
+    mads_enabled = False
+    if 'selfdriveStateSP' in getattr(sm, 'data', sm):
+      mads_enabled = getattr(getattr(sm['selfdriveStateSP'], 'mads', None), 'enabled', False)
+    active = sm['selfdriveState'].enabled or mads_enabled
+    self.accel_boost.update(sm['selfdriveState'].enabled, sm['carState'].gasPressed, v_ego, model_limited, active=active)
     output_a_target_e2e = self.accel_boost.apply(output_a_target_e2e)
 
     candidates = [(output_a_target_mpc, self.mpc.source, output_should_stop_mpc),
