@@ -2,6 +2,7 @@
 import math
 import numpy as np
 
+from openpilot.cereal import log
 import openpilot.cereal.messaging as messaging
 from opendbc.car.interfaces import ACCEL_MIN, ACCEL_MAX
 from openpilot.common.constants import CV
@@ -153,7 +154,9 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     if 'selfdriveStateSP' in getattr(sm, 'data', sm):
       mads_enabled = getattr(getattr(sm['selfdriveStateSP'], 'mads', None), 'enabled', False)
     active = sm['selfdriveState'].enabled or mads_enabled
-    self.accel_boost.update(sm['selfdriveState'].enabled, sm['carState'].gasPressed, model_limited, active=active)
+    personality = getattr(sm['selfdriveState'], 'personality', log.LongitudinalPersonality.standard)
+    self.accel_boost.update(sm['selfdriveState'].enabled, sm['carState'].gasPressed, model_limited, active=active,
+                            personality=personality)
     output_a_target_e2e = self.accel_boost.apply(output_a_target_e2e)
 
     candidates = [(output_a_target_mpc, self.mpc.source, output_should_stop_mpc),
