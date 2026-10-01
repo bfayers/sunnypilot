@@ -2,9 +2,9 @@ import numpy as np
 from openpilot.cereal import log
 from openpilot.common.realtime import DT_MDL
 
-ACCEL_BOOST_MAX = 0.2
-ACCEL_BOOST_RATE = 0.025
-ACCEL_BOOST_PER_OVERRIDE = 0.05
+ACCEL_BOOST_MAX = 0.5
+ACCEL_BOOST_RATE = 0.05
+ACCEL_BOOST_PER_OVERRIDE = 0.25
 
 
 def get_starting_boost(personality=log.LongitudinalPersonality.standard) -> float:
