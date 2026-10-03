@@ -1,6 +1,8 @@
 import numpy as np
 from openpilot.cereal import log
+from openpilot.common.params import Params
 from openpilot.common.realtime import DT_MDL
+from openpilot.sunnypilot import PARAMS_UPDATE_PERIOD
 
 ACCEL_BOOST_MAX = 0.5
 ACCEL_BOOST_RATE = 0.05
@@ -16,14 +18,31 @@ def get_starting_boost(personality=log.LongitudinalPersonality.standard) -> floa
 
 
 class AccelBoost:
-  def __init__(self, dt=DT_MDL):
+  def __init__(self, dt=DT_MDL, params=None):
     self.dt = dt
+    self.params = params or Params()
+    self.enabled = bool(self.params.get("AccelBoost", return_default=True))
+    self.frame = -1
     self.value = 0.0
     self.override_boost = 0.0
     self.prev_active = False
     self.prev_personality = None
 
+  def _update_params(self):
+    self.frame += 1
+    if self.frame % int(PARAMS_UPDATE_PERIOD / DT_MDL) == 0:
+      self.enabled = bool(self.params.get("AccelBoost", return_default=True))
+
   def update(self, enabled, gas_pressed, model_limited, active=None, personality=log.LongitudinalPersonality.standard):
+    self._update_params()
+
+    if not self.enabled:
+      self.value = 0.0
+      self.override_boost = 0.0
+      self.prev_active = False
+      self.prev_personality = None
+      return
+
     if active is None:
       active = enabled
 
@@ -44,4 +63,6 @@ class AccelBoost:
     self.prev_personality = personality
 
   def apply(self, accel):
+    if not self.enabled or self.value == 0.0:
+      return accel
     return accel + np.interp(accel, [-1.0, -0.5, 5.0], [0.0, self.value, self.value], right=0.0)

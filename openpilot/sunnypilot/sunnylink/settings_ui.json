@@ -643,6 +643,19 @@
               ]
             },
             {
+              "key": "AccelBoost",
+              "widget": "toggle",
+              "title": "Acceleration Boost",
+              "description": "Boost desired acceleration in End to End Longitudinal mode.",
+              "enablement": [
+                {
+                  "type": "capability",
+                  "field": "has_longitudinal_control",
+                  "equals": true
+                }
+              ]
+            },
+            {
               "key": "DisengageOnAccelerator",
               "widget": "toggle",
               "title": "Disengage Cruise on Accelerator Pedal",
