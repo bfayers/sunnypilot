@@ -105,10 +105,16 @@ class CruiseLayout(Widget):
       label_callback=lambda speed: f'{speed} {"km/h" if ui_state.is_metric else "mph"}',
     )
 
+    self.accel_boost_toggle = toggle_item_sp(
+      title=tr("Acceleration Boost"),
+      description=tr("Boost desired acceleration in End to End Longitudinal mode."),
+      param="AccelBoost")
+
     items = [
       self.icbm_toggle,
       self.dec_option,
       self.dec_map_max_speed_option,
+      self.accel_boost_toggle,
       self.scc_v_toggle,
       self.scc_m_toggle,
       self.scc_disable_on_blended_toggle,
@@ -131,6 +137,7 @@ class CruiseLayout(Widget):
     self.icbm_toggle.show_description(True)
     self.custom_acc_toggle.show_description(True)
     self.dec_option.show_description(True)
+    self.accel_boost_toggle.show_description(True)
 
   def _set_current_panel(self, panel: PanelType):
     self._current_panel = panel
@@ -170,6 +177,7 @@ class CruiseLayout(Widget):
         self.custom_acc_toggle.action_item.set_enabled(((has_long and not ui_state.CP.pcmCruise) or has_icbm) and ui_state.is_offroad())
         self.dec_option.action_item.set_enabled(has_long)
         self.dec_map_max_speed_option.action_item.set_enabled(has_long)
+        self.accel_boost_toggle.action_item.set_enabled(has_long)
         self.scc_v_toggle.action_item.set_enabled(True)
         self.scc_m_toggle.action_item.set_enabled(True)
         self.scc_disable_on_blended_toggle.action_item.set_enabled(True)
@@ -177,12 +185,14 @@ class CruiseLayout(Widget):
         ui_state.params.remove("CustomAccIncrementsEnabled")
         ui_state.params.remove("DynamicExperimentalControl")
         ui_state.params.remove("DynamicExperimentalControlMapMaxSpeed")
+        ui_state.params.remove("AccelBoost")
         ui_state.params.remove("SmartCruiseControlVision")
         ui_state.params.remove("SmartCruiseControlMap")
         ui_state.params.remove("SmartCruiseControlDisableOnBlended")
         self.custom_acc_toggle.action_item.set_enabled(False)
         self.dec_option.action_item.set_enabled(False)
         self.dec_map_max_speed_option.action_item.set_enabled(False)
+        self.accel_boost_toggle.action_item.set_enabled(False)
         self.scc_v_toggle.action_item.set_enabled(False)
         self.scc_m_toggle.action_item.set_enabled(False)
         self.scc_disable_on_blended_toggle.action_item.set_enabled(False)
