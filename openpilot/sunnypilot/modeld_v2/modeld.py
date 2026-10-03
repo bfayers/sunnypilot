@@ -220,7 +220,8 @@ class ModelState(ModelStateBase):
 
   def run(self, bufs: dict[str, VisionBuf], transforms: dict[str, np.ndarray],
           inputs: dict[str, np.ndarray],
-          after_enqueue: Callable[[], None] | None = None) -> dict[str, np.ndarray] | None:
+          after_enqueue: Callable[[], None] | None = None,
+          prepare_only: bool = False) -> dict[str, np.ndarray] | None:
     for key in bufs.keys():
       ptr = np.frombuffer(bufs[key].data, dtype=np.uint8).ctypes.data
       yuv_size = self.frame_buf_params[key][3]
@@ -243,8 +244,14 @@ class ModelState(ModelStateBase):
     self.numpy_inputs['big_tfm'][:, :] = transforms[wide_key].reshape(3, 3)
 
     if self.is_legacy_model:  # remove after next recompile
+      if prepare_only:
+        self.warp(**self.input_queues, frame=self.full_frames[road_key], big_frame=self.full_frames[wide_key])
+        return None
       raw_outputs = self.run_policy(**self.input_queues, frame=self.full_frames[road_key], big_frame=self.full_frames[wide_key])
     else:
+      if prepare_only:
+        self.warp(**{k: self.input_queues[k] for k in WARP_INPUTS}, frame=self.full_frames[road_key], big_frame=self.full_frames[wide_key])
+        return None
       warped = self.warp(**{k: self.input_queues[k] for k in WARP_INPUTS}, frame=self.full_frames[road_key], big_frame=self.full_frames[wide_key])
       raw_outputs = self.run_policy(**{k: self.input_queues[k] for k in POLICY_INPUTS if k in self.input_queues}, warped=warped)
 
