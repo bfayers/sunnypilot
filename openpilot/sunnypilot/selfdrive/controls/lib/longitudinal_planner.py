@@ -50,9 +50,10 @@ class LongitudinalPlannerSP:
 
     long_enabled = sm['carControl'].enabled
     long_override = sm['carControl'].cruiseControl.override
+    e2e_mode = self.is_e2e(sm)
 
     # Smart Cruise Control
-    self.scc.update(sm, long_enabled, long_override, v_ego, a_ego, v_cruise)
+    self.scc.update(sm, long_enabled, long_override, v_ego, a_ego, v_cruise, e2e_mode=e2e_mode)
 
     # Speed Limit Resolver
     self.resolver.update(v_ego, sm)
