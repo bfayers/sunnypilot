@@ -643,6 +643,19 @@
               ]
             },
             {
+              "key": "AccelBoost",
+              "widget": "toggle",
+              "title": "Acceleration Boost",
+              "description": "Boost desired acceleration in End to End Longitudinal mode.",
+              "enablement": [
+                {
+                  "type": "capability",
+                  "field": "has_longitudinal_control",
+                  "equals": true
+                }
+              ]
+            },
+            {
               "key": "DisengageOnAccelerator",
               "widget": "toggle",
               "title": "Disengage Cruise on Accelerator Pedal",
@@ -2092,6 +2105,38 @@
       "remote_configurable": false,
       "description": "Driving model behavior and camera calibration",
       "sections": [
+        {
+          "id": "accelerator",
+          "title": "Accelerator",
+          "description": "Off-board accelerator for large driving models",
+          "items": [
+            {
+              "key": "JetlinkLink",
+              "widget": "multiple_button",
+              "title": "Accelerator Link",
+              "description": "Run the big driving model on an attached accelerator: USB for a Jetson, a Linux PC or a Mac, iOS for an iPhone.",
+              "options": [
+                {
+                  "value": 0,
+                  "label": "Off"
+                },
+                {
+                  "value": 1,
+                  "label": "USB"
+                },
+                {
+                  "value": 2,
+                  "label": "iOS"
+                }
+              ],
+              "enablement": [
+                {
+                  "type": "offroad_only"
+                }
+              ]
+            }
+          ]
+        },
         {
           "id": "model_behavior",
           "title": "Model Behavior",
