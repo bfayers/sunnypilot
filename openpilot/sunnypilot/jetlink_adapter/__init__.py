@@ -367,6 +367,7 @@ def _patch_tinygrad_buffer() -> None:
     if 'force_zero_copy' not in sig.parameters:
       orig = Buffer.as_memoryview
       def as_memoryview(self, allow_zero_copy=False, force_zero_copy=False, no_sync=False):
+        self.ensure_allocated()
         return orig(self, allow_zero_copy=allow_zero_copy or force_zero_copy)
       Buffer.as_memoryview = as_memoryview
   except Exception:
