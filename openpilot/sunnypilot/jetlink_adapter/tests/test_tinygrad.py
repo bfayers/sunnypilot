@@ -205,3 +205,29 @@ class TestTheFramePath(OpenpilotTestCase):
     # and the first frame's log has just gone out
     self.assertEqual(self.found['asks'], [False, False, False])
     self.assertEqual(self.found['events'], ['jetlinkTelemetry'])
+
+
+class TestTinygradCompatibility(OpenpilotTestCase):
+  def test_prepare_patches_buffer_as_memoryview_for_modeld(self):
+    code = '''
+import inspect
+from tinygrad.device import Buffer
+from tinygrad.dtype import dtypes
+from openpilot.sunnypilot import jetlink_adapter
+
+jetlink_adapter.prepare()
+sig = inspect.signature(Buffer.as_memoryview)
+assert 'force_zero_copy' in sig.parameters
+assert 'no_sync' in sig.parameters
+
+buf = Buffer('CPU', 16, dtypes.uint8).allocate()
+mv = buf.as_memoryview(force_zero_copy=True, no_sync=True)
+assert len(mv) == 16
+print("OK")
+'''
+    env = {**os.environ, 'DEV': 'CPU', 'PYTHONPATH': os.pathsep.join([str(ROOT), *sys.path])}
+    out = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, env=env, cwd=str(ROOT),
+                         timeout=60)
+    self.assertEqual(out.returncode, 0, out.stderr)
+    self.assertEqual(out.stdout.strip(), "OK")
+

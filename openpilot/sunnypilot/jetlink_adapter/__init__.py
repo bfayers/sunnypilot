@@ -356,11 +356,29 @@ def reason() -> str | None:
   return _api().reason()
 
 
+def _patch_tinygrad_buffer() -> None:
+  """tinygrad 0.8.5 compatibility: jetlink expects force_zero_copy and no_sync
+  keywords on Buffer.as_memoryview, whereas sunnypilot's pinned tinygrad uses
+  allow_zero_copy."""
+  try:
+    import inspect
+    from tinygrad.device import Buffer
+    sig = inspect.signature(Buffer.as_memoryview)
+    if 'force_zero_copy' not in sig.parameters:
+      orig = Buffer.as_memoryview
+      def as_memoryview(self, allow_zero_copy=False, force_zero_copy=False, no_sync=False):
+        return orig(self, allow_zero_copy=allow_zero_copy or force_zero_copy)
+      Buffer.as_memoryview = as_memoryview
+  except Exception:
+    pass
+
+
 @_guarded(False)
 def prepare() -> bool:
   """modeld, before config_realtime_process: will the link join this modeld?
   The GPU's setup has to happen now, or its threads inherit the frame loop's
   realtime priority and core."""
+  _patch_tinygrad_buffer()
   return _api().prepare()
 
 
@@ -386,6 +404,7 @@ def in_control(sm) -> bool:
 def attach(small, cam_w: int, cam_h: int):
   """modeld, once the camera is up and `small` is built: the model to run,
   `small` driving until the link has joined; None unless prepare() said yes."""
+  _patch_tinygrad_buffer()
   return _api().attach(small, cam_w, cam_h)
 
 
