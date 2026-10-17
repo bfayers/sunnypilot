@@ -314,6 +314,7 @@ class TestRefreshOnAJetlinkDevice(RefreshTest):
     cached = self.params.get(KEYS.catalog)
     self.assertIs(cached[EXTENDED_KEY], True)
     self.assertEqual([b['ref'] for b in cached['bundles']], [V3, V4])
+    self.assertEqual(self.params.get("ModelManager_ActiveJson"), {"qcom": ModelFetcherZP.MODEL_URL})
     self.assert_pick_and_readiness_kept()
 
   def test_a_failed_fetch_leaves_the_pick_and_readiness_alone(self):
@@ -365,6 +366,32 @@ class TestRefreshBesideAChestnut(RefreshTest):
     self.refresh()
     self.assertTrue(all(self.stamps()))
     self.assertEqual(self.params.get(KEYS.catalog), {**BIG, EXTENDED_KEY: False})
+    self.assertEqual(self.params.get("ModelManager_ActiveJson"), {
+      "qcom": ModelFetcherZP.MODEL_URL,
+      "chestnut": ModelFetcherZP.MODEL_URL_CHESTNUT,
+    })
+
+
+class TestActiveJson(OpenpilotTestCase):
+  """Sunnylink UI queries ModelManager_ActiveJson to decide whether to fetch
+  model manifests directly from GitHub or fall back to device cache. When the
+  catalog is extended for Jetlink, chestnut URL is omitted so Sunnylink UI pulls
+  the extended catalog from ModelManager_ModelsCache_Chestnut on the device."""
+
+  def test_active_json_omits_chestnut_when_cached_catalog_is_extended(self):
+    params = Params()
+    params.put(KEYS.catalog, {"bundles": [], EXTENDED_KEY: True}, block=True)
+    ModelFetcherZP(params)
+    self.assertEqual(params.get("ModelManager_ActiveJson"), {"qcom": ModelFetcherZP.MODEL_URL})
+
+  def test_active_json_includes_chestnut_when_cached_catalog_not_extended(self):
+    params = Params()
+    params.put(KEYS.catalog, {"bundles": [], EXTENDED_KEY: False}, block=True)
+    ModelFetcherZP(params)
+    self.assertEqual(params.get("ModelManager_ActiveJson"), {
+      "qcom": ModelFetcherZP.MODEL_URL,
+      "chestnut": ModelFetcherZP.MODEL_URL_CHESTNUT,
+    })
 
 
 if __name__ == '__main__':
