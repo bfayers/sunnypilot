@@ -139,9 +139,22 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"UptimeOnroad", {PERSISTENT, FLOAT, "0.0"}},
     {"ChestnutActive", {CLEAR_ON_MANAGER_START | CLEAR_ON_OFFROAD_TRANSITION | CLEAR_ON_IGNITION_ON, BOOL}},
     {"ChestnutLoading", {CLEAR_ON_MANAGER_START | CLEAR_ON_OFFROAD_TRANSITION | CLEAR_ON_IGNITION_ON, BOOL}},
+    {"ChestnutModelError", {CLEAR_ON_MANAGER_START | CLEAR_ON_OFFROAD_TRANSITION | CLEAR_ON_IGNITION_ON, BOOL}},
     {"Version", {PERSISTENT, STRING}},
 
     // --- sunnypilot params --- //
+
+    // Accelerators: what runs the large model. See sunnypilot/jetlink_adapter/.
+    {"AcceleratorProgress", {CLEAR_ON_MANAGER_START, JSON}},
+    {"Offroad_AcceleratorUnavailable", {CLEAR_ON_MANAGER_START, JSON}},
+    // jetlink backend. JetlinkSpec carries whether the engine is built, which must
+    // survive a reboot, or every ignition cycle would rebuild a multi-minute engine.
+    {"JetlinkLink", {PERSISTENT | BACKUP, INT, "0"}},
+    {"JetlinkSpec", {PERSISTENT, JSON}},
+    {"JetlinkModelPointers", {PERSISTENT, JSON}},
+    // an iPhone on a direct cable charges from the comma; off by default, some
+    // lose the link once the comma powers them
+    {"JetlinkChargePhone", {PERSISTENT, BOOL, "0"}},
     {"ApiCache_DriveStats", {PERSISTENT, JSON}},
     {"AutoLaneChangeBsmDelay", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"AutoLaneChangeTimer", {PERSISTENT | BACKUP, INT, "0"}},
@@ -212,6 +225,10 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"ModelManager_LastSyncTime_Chestnut", {CLEAR_ON_MANAGER_START | CLEAR_ON_OFFROAD_TRANSITION, INT, "0"}},
     {"ModelManager_ModelsCache", {PERSISTENT | BACKUP, JSON}},
     {"ModelManager_ModelsCache_Chestnut", {PERSISTENT | BACKUP, JSON}},
+    // zoompilot: one-time marker so the Firehose Model is applied as the default exactly once (see models/default_bootstrap.py)
+    {"DefaultModelApplied", {PERSISTENT | BACKUP, BOOL}},
+    // zoompilot: model picks waiting to be re-queued after a selector bump (models/default_bootstrap.py)
+    {"ModelManager_CarryOver", {PERSISTENT, JSON}},
 
     // Neural Network Lateral Control
     {"NeuralNetworkLateralControl", {PERSISTENT | BACKUP, BOOL, "0"}},
