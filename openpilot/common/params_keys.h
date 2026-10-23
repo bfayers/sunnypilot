@@ -149,6 +149,8 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"Version", {PERSISTENT, STRING}},
 
     // --- sunnypilot params --- //
+    {"AccelBoostMapMode", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"AccelBoostMapMinSpeed", {PERSISTENT | BACKUP, INT, "50"}},
     {"ApiCache_DriveStats", {PERSISTENT, JSON}},
     {"AutoLaneChangeBsmDelay", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"AutoLaneChangeTimer", {PERSISTENT | BACKUP, INT, "0"}},
@@ -258,6 +260,12 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"LaneTurnDesire", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"LaneTurnValue", {PERSISTENT | BACKUP, FLOAT, "19.0"}},
     {"PlanplusControl", {PERSISTENT | BACKUP, FLOAT, "1.0"}},
+
+    // Lane Centering
+    {"LaneCentering", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"LaneCenteringPauseOnSignal", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"LaneCenteringE2EAuthority", {PERSISTENT | BACKUP, FLOAT, "1.0"}},
+    {"LaneCenterOffset", {PERSISTENT | BACKUP, FLOAT, "0.0"}},
 
     // mapd
     {"MapAdvisorySpeedLimit", {CLEAR_ON_ONROAD_TRANSITION, FLOAT}},

@@ -505,6 +505,58 @@
               ]
             }
           ]
+        },
+        {
+          "id": "lane_centering",
+          "title": "Lane Centering",
+          "description": "Bias the model command toward the detected lane center",
+          "items": [
+            {
+              "key": "LaneCentering",
+              "widget": "toggle",
+              "title": "Enable Lane Centering",
+              "description": "Experimentally bias the model command toward the detected lane center using code from StarPilot. Requires two confident lane boundaries (lane lines or road edges) and remains subject to normal curvature and jerk limits."
+            }
+          ],
+          "sub_panels": [
+            {
+              "id": "lane_centering_settings",
+              "label": "Lane Centering Settings",
+              "trigger_key": "LaneCentering",
+              "trigger_condition": {
+                "type": "param",
+                "key": "LaneCentering",
+                "equals": true
+              },
+              "items": [
+                {
+                  "key": "LaneCenterOffset",
+                  "widget": "option",
+                  "title": "Lane Center Offset",
+                  "description": "Shift the lane target left or right in meters. The controller reduces this offset automatically when the detected lane is narrow.",
+                  "min": -0.3,
+                  "max": 0.3,
+                  "step": 0.01,
+                  "unit": "m"
+                },
+                {
+                  "key": "LaneCenteringPauseOnSignal",
+                  "widget": "toggle",
+                  "title": "Pause Lane Centering On Turn Signal",
+                  "description": "Fade lane-centering correction out when a turn signal is active so it does not fight a lane change or turn."
+                },
+                {
+                  "key": "LaneCenteringE2EAuthority",
+                  "widget": "option",
+                  "title": "E2E Override Strength",
+                  "description": "Choose how strongly the vision model may override lane centering when it sees a hazard.",
+                  "min": 0.0,
+                  "max": 1.0,
+                  "step": 0.05
+                }
+              ]
+            }
+          ]
         }
       ]
     },
@@ -521,6 +573,42 @@
           "title": "",
           "description": "",
           "items": [
+            {
+              "key": "AccelBoostMapMode",
+              "widget": "toggle",
+              "title": "Acceleration Boost - Map Mode",
+              "description": "Only enable Acceleration Boost on roads with a speed limit at or above the configured minimum.",
+              "enablement": [
+                {
+                  "type": "capability",
+                  "field": "has_longitudinal_control",
+                  "equals": true
+                }
+              ]
+            },
+            {
+              "key": "AccelBoostMapMinSpeed",
+              "widget": "option",
+              "title": "Acceleration Boost Map - Min Speed",
+              "description": "Minimum road speed limit to allow Acceleration Boost in Map mode.",
+              "min": 20,
+              "max": 120,
+              "step": 5,
+              "visibility": [
+                {
+                  "type": "param",
+                  "key": "AccelBoostMapMode",
+                  "equals": true
+                }
+              ],
+              "enablement": [
+                {
+                  "type": "capability",
+                  "field": "has_longitudinal_control",
+                  "equals": true
+                }
+              ]
+            },
             {
               "key": "DisengageOnAccelerator",
               "widget": "toggle",
