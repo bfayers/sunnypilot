@@ -18,9 +18,6 @@ from openpilot.system.ui.sunnypilot.widgets.list_view import (
 )
 from openpilot.system.ui.widgets.scroller_tici import Scroller
 from openpilot.system.ui.widgets import Widget
-from openpilot.selfdrive.ui.sunnypilot.layouts.settings.steering_sub_layouts.lane_centering_settings import (
-  LaneCenteringSettingsLayout,
-)
 from openpilot.selfdrive.ui.sunnypilot.layouts.settings.steering_sub_layouts.lane_change_settings import (
   LaneChangeSettingsLayout,
 )
