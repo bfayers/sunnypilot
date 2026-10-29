@@ -23,6 +23,10 @@ sections:
     widget: toggle
     blocked: true
     title: Enable SSH
+  - key: LaneGuardEnabled
+    widget: toggle
+    title: Lane Guard
+    description: Lukas Lane Guard
   - key: JoystickDebugMode
     widget: toggle
     title: Joystick Debug Mode
