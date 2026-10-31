@@ -29,7 +29,6 @@ from msgq.visionipc import VisionIpcClient, VisionBuf
 from opendbc.car.car_helpers import get_demo_car_params
 from openpilot.common.swaglog import cloudlog
 from openpilot.common.params import Params
-from openpilot.common.hardware.usb import cable_connected
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.realtime import config_realtime_process, DT_MDL
 from openpilot.common.transformations.camera import DEVICE_CAMERAS
@@ -41,6 +40,8 @@ from openpilot.selfdrive.modeld.parse_model_outputs import Parser
 from openpilot.selfdrive.modeld.fill_model_msg import fill_model_msg, fill_driving_model_data, fill_pose_msg, PublishState
 from openpilot.selfdrive.modeld.constants import ModelConstants, Plan
 from openpilot.selfdrive.modeld.helpers import MODELS_DIR, chestnut_present, chestnut_compiled, modeld_pkl_path, load_oob, wait_for_chestnut
+
+from openpilot.sunnypilot import jetlink_adapter
 from openpilot.sunnypilot.livedelay.helpers import get_lat_delay
 from openpilot.sunnypilot.modeld_v2.modeld_base import ModelStateBase
 from openpilot.sunnypilot.selfdrive.controls.lib.relc import RoadEdgeLaneChangeController
@@ -54,7 +55,10 @@ BIG_MODEL_TIMEOUT = 60
 
 
 def get_action_from_model(model_output: dict[str, np.ndarray], prev_action: log.ModelDataV2.Action,
-                          lat_action_t: float, long_action_t: float, v_ego: float) -> log.ModelDataV2.Action:
+                          lat_action_t: float, long_action_t: float, v_ego: float,
+                          blinker: bool = False) -> log.ModelDataV2.Action:
+  min_lat_control_speed = 0.3 if blinker else MIN_LAT_CONTROL_SPEED
+  v_ego_floor = 1.0 if blinker else 2.5
   if 'action' not in model_output:
     plan = model_output['plan'][0]
     desired_accel = get_accel_from_plan(plan[:,Plan.VELOCITY][:,0],
@@ -68,10 +72,10 @@ def get_action_from_model(model_output: dict[str, np.ndarray], prev_action: log.
                                                 lat_action_t)
   else:
     desired_accel = model_output['action'][0,1]
-    desired_curvature = model_output['action'][0,0] / (max(2.5, v_ego))**2
+    desired_curvature = model_output['action'][0,0] / (max(v_ego_floor, v_ego))**2
   stop = should_stop(v_ego, desired_accel)
   desired_accel = smooth_value(desired_accel, prev_action.desiredAcceleration, LONG_SMOOTH_SECONDS)
-  if v_ego > MIN_LAT_CONTROL_SPEED:
+  if v_ego > min_lat_control_speed:
     desired_curvature = smooth_value(desired_curvature, prev_action.desiredCurvature, LAT_SMOOTH_SECONDS)
   else:
     desired_curvature = prev_action.desiredCurvature
@@ -236,13 +240,15 @@ class ModelState(ModelStateBase):
 def main(demo=False):
   cloudlog.warning("modeld init")
 
-  CHESTNUT = chestnut_compiled() and (chestnut_present() or cable_connected())
+  CHESTNUT = chestnut_compiled() and (chestnut_present() or jetlink_adapter.chestnut_cable())
   if CHESTNUT:
     from tinygrad.runtime.ops_amd import AMDDevice
     AMDDevice.wait_timeout_ms = 3000
   params = Params()
   params.put_bool("ChestnutLoading", CHESTNUT)
   params.remove("ChestnutActive")
+  # before going realtime: prepare() starts tinygrad's device thread, which would inherit FIFO 54 on core 7
+  jetlink_adapter.prepare(CHESTNUT)
 
   gc.disable()
 
@@ -298,6 +304,7 @@ def main(demo=False):
   small_model = ModelState(vipc_client_main.width, vipc_client_main.height, False) if model is None or CHESTNUT else None
   if model is None:
     model = small_model
+  model = jetlink_adapter.attach(model, small_model, vipc_client_main.width, vipc_client_main.height)
   assert model is not None
   params.put_bool("ChestnutLoading", False)
   cloudlog.warning(f"models loaded in {time.monotonic() - st:.1f}s, modeld starting")
@@ -308,7 +315,7 @@ def main(demo=False):
   pub_socks = ["modelV2", "drivingModelData", "cameraOdometry", "modelDataV2SP"] + (["chestnutGpuState"] if CHESTNUT else [])
   pm = PubMaster(pub_socks)
   sm = SubMaster(["deviceState", "carState", "narrowRoadCameraState", "extrinsicsCalibration", "driverMonitoringState",
-                  "carControl", "controlsState", "lateralDelay"])
+                  "carControl", "carControlSP", "controlsState", "lateralDelay"])
 
   publish_state = PublishState()
   params = Params()
@@ -420,6 +427,7 @@ def main(demo=False):
       'action_t': np.array([lat_action_t, long_action_t], dtype=np.float32),
     }
 
+    model.frame_drop_ratio = frame_drop_ratio
     mt1 = time.perf_counter()
     try:
       send_chestnut = (chestnut_state is not None and
@@ -439,6 +447,8 @@ def main(demo=False):
       model_output = None
     mt2 = time.perf_counter()
     model_execution_time = mt2 - mt1
+    if jetlink_adapter.handed_over(model):
+      run_count, frame_drop_ratio = 0, 0.
 
     if model_output is not None:
       modelv2_send = messaging.new_message('modelV2')
@@ -448,7 +458,8 @@ def main(demo=False):
 
       if not sm['carControl'].latActive:
         prev_action.desiredCurvature = sm['controlsState'].curvature
-      action = get_action_from_model(model_output, prev_action, lat_action_t, long_action_t, v_ego)
+      blinker = sm['carState'].leftBlinker or sm['carState'].rightBlinker
+      action = get_action_from_model(model_output, prev_action, lat_action_t, long_action_t, v_ego, blinker=blinker)
       prev_action = action
       fill_model_msg(modelv2_send, model_output, action,
                      publish_state, meta_main.frame_id, meta_extra.frame_id, frame_id,
@@ -459,6 +470,7 @@ def main(demo=False):
       l_lane_change_prob = desire_state[log.Desire.laneChangeLeft]
       r_lane_change_prob = desire_state[log.Desire.laneChangeRight]
       lane_change_prob = l_lane_change_prob + r_lane_change_prob
+      mdv2sp_send.modelDataV2SP.acceleratorState = jetlink_adapter.state(model)
       left_edge, right_edge = RELC.update_and_fill(modelv2_send.modelV2, mdv2sp_send.modelDataV2SP, v_ego)
       DH.update(sm['carState'], sm['carControl'].latActive, lane_change_prob, left_edge, right_edge)
       modelv2_send.modelV2.meta.laneChangeState = DH.lane_change_state

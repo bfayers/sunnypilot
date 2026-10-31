@@ -20,6 +20,7 @@ from setproctitle import setproctitle
 import openpilot.cereal.messaging as messaging
 from openpilot.common.hardware import COMMA_HARDWARE
 from openpilot.selfdrive.modeld.helpers import chestnut_present, wait_for_chestnut
+from openpilot.sunnypilot import jetlink_adapter
 from openpilot.cereal import log
 from opendbc.car.structs import car
 from openpilot.cereal.services import SERVICE_LIST
@@ -29,7 +30,6 @@ from msgq.visionipc import VisionIpcClient, VisionBuf
 from opendbc.car.car_helpers import get_demo_car_params
 from openpilot.common.swaglog import cloudlog
 from openpilot.common.params import Params
-from openpilot.common.hardware.usb import cable_connected
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.realtime import config_realtime_process, DT_MDL
 from openpilot.common.transformations.camera import DEVICE_CAMERAS
@@ -131,6 +131,7 @@ class ModelState(ModelStateBase):
     self._road_key = self.adapter._road_key
     self._wide_key = self.adapter._wide_key
     self.frame_buf_params = self.adapter.frame_buf_params
+    self.input_queues = getattr(self.adapter, 'input_queues', {})
 
     is_20hz = bundle.is20hz if bundle else self._combined_model_type in ('split', 'multi_policy')
     if is_20hz:
@@ -231,7 +232,8 @@ class ModelState(ModelStateBase):
 
   def get_action_from_model(self, model_output: dict[str, np.ndarray], prev_action: log.ModelDataV2.Action,
                             lat_action_t: float, long_action_t: float, v_ego: float,
-                            blendful: Callable[[float], float] | None = None) -> log.ModelDataV2.Action:
+                            blendful: Callable[[float], float] | None = None,
+                            blinker: bool = False) -> log.ModelDataV2.Action:
     if 'action' not in model_output:
       plan = model_output['plan'][0]
       desired_accel = get_accel_from_plan(plan[:, Plan.VELOCITY][:, 0], plan[:, Plan.ACCELERATION][:, 0], self.constants.T_IDXS,
@@ -264,10 +266,14 @@ def main(demo=False):
   cloudlog.bind(daemon=PROCESS_NAME)
   setproctitle(PROCESS_NAME)
 
-  CHESTNUT = _find_driving_pkl(get_active_bundle(chestnut=True)) is not None and (chestnut_present() or cable_connected())
+  CHESTNUT = _find_driving_pkl(get_active_bundle(chestnut=True)) is not None and \
+    (chestnut_present() or jetlink_adapter.chestnut_cable())
   if CHESTNUT:
     from tinygrad.runtime.ops_amd import AMDDevice
     AMDDevice.wait_timeout_ms = 3000
+
+  # before going realtime: prepare() starts tinygrad's device thread, which would inherit FIFO 54 on core 7
+  jetlink_adapter.prepare(CHESTNUT)
 
   params = Params()
   params.put_bool("ChestnutLoading", CHESTNUT)
@@ -317,6 +323,8 @@ def main(demo=False):
     loader.start()
     loader.join(BIG_MODEL_TIMEOUT)
     model = big_model
+    if model is None:
+      params.put_bool("ChestnutModelError", True)
     if model is None and not params.get_bool("ChestnutRetry"):
       # a crank can cut the chestnut power during the load, retry once with an onroad cycle
       cloudlog.error("big model load failed, cycling onroad to retry")
@@ -324,10 +332,13 @@ def main(demo=False):
       params.put_bool("OnroadCycleRequested", True)
     else:
       params.put_bool("ChestnutActive", model is not None)
+    if model is not None:
+      params.remove("ChestnutModelError")
 
   small_model = ModelState(cam_w=vipc_client_main.width, cam_h=vipc_client_main.height, chestnut=False) if model is None or CHESTNUT else None
   if model is None:
     model = small_model
+  model = jetlink_adapter.attach(model, small_model, vipc_client_main.width, vipc_client_main.height)
   params.put_bool("ChestnutLoading", False)
   assert model is not None
   cloudlog.warning(f"models loaded in {time.monotonic() - st:.1f}s, modeld starting")
@@ -338,7 +349,7 @@ def main(demo=False):
   pub_socks = ["modelV2", "drivingModelData", "cameraOdometry", "modelDataV2SP"] + (["chestnutGpuState"] if CHESTNUT else [])
   pm = PubMaster(pub_socks)
   sm = SubMaster(["deviceState", "carState", "narrowRoadCameraState", "extrinsicsCalibration", "driverMonitoringState",
-                  "carControl", "controlsState", "lateralDelay"])
+                  "carControl", "carControlSP", "controlsState", "lateralDelay"])
 
   publish_state = PublishState()
   chestnut_state = ChestnutGpuState(pm, model.chestnut) if CHESTNUT else None
@@ -452,17 +463,18 @@ def main(demo=False):
     lat_action_t = lat_delay + frame_delay + action_delay
     long_action_t = long_delay + frame_delay + action_delay
 
+    # action_t for every model: run() takes what it has a slot for, and a large
+    # model joining mid-drive reads it from a frame built for the small one
     inputs:dict[str, np.ndarray] = {
       model.desire_key: vec_desire,
       'traffic_convention': traffic_convention,
+      'action_t': np.array([lat_action_t, long_action_t], dtype=np.float32),
     }
 
     if 'lateral_control_params' in model.numpy_inputs:
       inputs['lateral_control_params'] = np.array([v_ego, lat_delay], dtype=np.float32)
 
-    if 'action_t' in model.numpy_inputs:
-      inputs['action_t'] = np.array([lat_action_t, long_action_t], dtype=np.float32)
-
+    model.frame_drop_ratio = frame_drop_ratio
     mt1 = time.perf_counter()
     try:
       send_chestnut = (chestnut_state is not None and
@@ -481,23 +493,30 @@ def main(demo=False):
       model_output = None
     mt2 = time.perf_counter()
     model_execution_time = mt2 - mt1
+    if jetlink_adapter.handed_over(model):
+      run_count, frame_drop_ratio = 0, 0.
 
     if model_output is not None:
       modelv2_send = messaging.new_message('modelV2')
       drivingdata_send = messaging.new_message('drivingModelData')
       posenet_send = messaging.new_message('cameraOdometry')
       mdv2sp_send = messaging.new_message('modelDataV2SP')
+      mdv2sp_send.modelDataV2SP.acceleratorState = jetlink_adapter.state(model)
 
       if not sm['carControl'].latActive:
         prev_action.desiredCurvature = sm['controlsState'].curvature
       blendful_active = desire == log.Desire.none and DH.lane_change_state == log.LaneChangeState.off
+      blinker = sm['carState'].leftBlinker or sm['carState'].rightBlinker
       action = model.get_action_from_model(model_output, prev_action, lat_action_t, long_action_t, v_ego,
-                                           partial(blendful.update, model_output, v_ego, blendful_active, enabled=blendful_enabled))
+                                           partial(blendful.update, model_output, v_ego, blendful_active, enabled=blendful_enabled),
+                                           blinker=blinker)
       prev_action = action
       fill_model_msg(drivingdata_send, modelv2_send, model_output, action,
                      publish_state, meta_main.frame_id, meta_extra.frame_id, frame_id,
                      frame_drop_ratio, meta_main.timestamp_eof, model_execution_time, live_calib_seen, meta_constants)
       modelv2_send.modelV2.big = model.chestnut
+      # as stock modeld's fill_driving_model_data: the qlog's only model message
+      drivingdata_send.drivingModelData.big = model.chestnut
 
       desire_state = modelv2_send.modelV2.meta.desireState
       l_lane_change_prob = desire_state[log.Desire.laneChangeLeft]
