@@ -232,7 +232,8 @@ class ModelState(ModelStateBase):
 
   def get_action_from_model(self, model_output: dict[str, np.ndarray], prev_action: log.ModelDataV2.Action,
                             lat_action_t: float, long_action_t: float, v_ego: float,
-                            blendful: Callable[[float], float] | None = None) -> log.ModelDataV2.Action:
+                            blendful: Callable[[float], float] | None = None,
+                            blinker: bool = False) -> log.ModelDataV2.Action:
     if 'action' not in model_output:
       plan = model_output['plan'][0]
       desired_accel = get_accel_from_plan(plan[:, Plan.VELOCITY][:, 0], plan[:, Plan.ACCELERATION][:, 0], self.constants.T_IDXS,
@@ -505,8 +506,10 @@ def main(demo=False):
       if not sm['carControl'].latActive:
         prev_action.desiredCurvature = sm['controlsState'].curvature
       blendful_active = desire == log.Desire.none and DH.lane_change_state == log.LaneChangeState.off
+      blinker = sm['carState'].leftBlinker or sm['carState'].rightBlinker
       action = model.get_action_from_model(model_output, prev_action, lat_action_t, long_action_t, v_ego,
-                                           partial(blendful.update, model_output, v_ego, blendful_active, enabled=blendful_enabled))
+                                           partial(blendful.update, model_output, v_ego, blendful_active, enabled=blendful_enabled),
+                                           blinker=blinker)
       prev_action = action
       fill_model_msg(drivingdata_send, modelv2_send, model_output, action,
                      publish_state, meta_main.frame_id, meta_extra.frame_id, frame_id,

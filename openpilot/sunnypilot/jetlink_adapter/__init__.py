@@ -120,11 +120,12 @@ def _adapter_class():
       # 0), so the correction added to its answer is the one modeld_v2 adds before smoothing
       from openpilot.selfdrive.modeld.modeld import MIN_LAT_CONTROL_SPEED, get_action_from_model
 
-      def action(model_output, prev_action, lat_action_t, long_action_t, v_ego, blendful=None):
-        action = get_action_from_model(model_output, prev_action, lat_action_t, long_action_t, v_ego)
+      def action(model_output, prev_action, lat_action_t, long_action_t, v_ego, blendful=None, blinker=False):
+        action = get_action_from_model(model_output, prev_action, lat_action_t, long_action_t, v_ego, blinker=blinker)
         if blendful is not None:
           correction = blendful(action.desiredCurvature)
-          if v_ego > MIN_LAT_CONTROL_SPEED:
+          min_lat_control_speed = 0.3 if blinker else MIN_LAT_CONTROL_SPEED
+          if v_ego > min_lat_control_speed:
             action.desiredCurvature += correction
         return action
       return action

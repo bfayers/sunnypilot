@@ -200,15 +200,17 @@ class TestModeld(OpenpilotTestCase):
     self.assertEqual(modeld.LAT_SMOOTH_SECONDS, 0.0)
     action = Adapter().model_face().get_action_from_model
     prev = log.ModelDataV2.Action(desiredCurvature=0.002, desiredAcceleration=0.1)
-    for v_ego in (0.1, 20.0):
-      output = {'action': np.array([[0.001 * max(1.0, v_ego) ** 2, 0.5]], dtype=np.float32)}
-      stock = modeld.get_action_from_model(output, prev, 0.3, 0.3, v_ego)
-      self.assertEqual(action(output, prev, 0.3, 0.3, v_ego).to_dict(), stock.to_dict(), 'stock modeld passes no callback')
-      blendful = mock.Mock(return_value=0.0005)
-      blended = action(output, prev, 0.3, 0.3, v_ego, blendful)
-      blendful.assert_called_once_with(stock.desiredCurvature)
-      self.assertAlmostEqual(blended.desiredCurvature, stock.desiredCurvature + (0.0005 if v_ego > modeld.MIN_LAT_CONTROL_SPEED else 0.0), places=6)
-      self.assertEqual(blended.desiredAcceleration, stock.desiredAcceleration)
+    for blinker in (False, True):
+      for v_ego in (0.1, 0.4, 20.0):
+        output = {'action': np.array([[0.001 * max(1.0, v_ego) ** 2, 0.5]], dtype=np.float32)}
+        stock = modeld.get_action_from_model(output, prev, 0.3, 0.3, v_ego, blinker=blinker)
+        self.assertEqual(action(output, prev, 0.3, 0.3, v_ego, blinker=blinker).to_dict(), stock.to_dict(), 'stock modeld passes no callback')
+        blendful = mock.Mock(return_value=0.0005)
+        blended = action(output, prev, 0.3, 0.3, v_ego, blendful, blinker=blinker)
+        blendful.assert_called_once_with(stock.desiredCurvature)
+        min_speed = 0.3 if blinker else modeld.MIN_LAT_CONTROL_SPEED
+        self.assertAlmostEqual(blended.desiredCurvature, stock.desiredCurvature + (0.0005 if v_ego > min_speed else 0.0), places=6)
+        self.assertEqual(blended.desiredAcceleration, stock.desiredAcceleration)
 
   def test_in_control_shuts_the_swap_window_on_anything_in_control_or_unknown(self):
     op = Adapter()
