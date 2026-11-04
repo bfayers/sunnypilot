@@ -61,7 +61,24 @@ class CruiseLayout(Widget):
       title=tr("Acceleration Boost"),
       description=tr("Adds a small push on top of sunnypilot's own acceleration, stronger in Aggressive and gentler in Relaxed. " +
                      "Eases off in curves and when sunnypilot slows or stops. Never goes past your set speed, and lead-car following still comes first."),
-      param="AccelBoostSP")
+      param="AccelBoostSP",
+      callback=self._on_accel_boost_toggle)
+
+    self.accel_boost_map_mode_toggle = toggle_item_sp(
+      title=tr("Acceleration Boost - Map Mode"),
+      description=tr("Only enable Acceleration Boost on roads with a speed limit at or above the configured minimum."),
+      param="AccelBoostSPMapMode",
+      callback=self._on_accel_boost_map_mode_toggle)
+
+    self.accel_boost_map_min_speed_option = option_item_sp(
+      param="AccelBoostSPMapMinSpeed",
+      title=lambda: tr("Acceleration Boost Map - Min Speed"),
+      min_value=20,
+      max_value=120,
+      value_change_step=5,
+      description=lambda: tr("Minimum road speed limit to allow Acceleration Boost in Map mode."),
+      label_callback=lambda speed: f'{speed} {"km/h" if ui_state.is_metric else "mph"}',
+    )
 
     self.custom_acc_toggle = toggle_item_sp(
       title=tr("Custom ACC Speed Increments"),
@@ -93,6 +110,8 @@ class CruiseLayout(Widget):
       self.scc_v_toggle,
       self.scc_m_toggle,
       self.accel_boost_toggle,
+      self.accel_boost_map_mode_toggle,
+      self.accel_boost_map_min_speed_option,
       self.custom_acc_toggle,
       self.custom_acc_short_increment,
       self.custom_acc_long_increment,
@@ -111,6 +130,7 @@ class CruiseLayout(Widget):
     self._scroller.show_event()
     self.icbm_toggle.show_description(True)
     self.custom_acc_toggle.show_description(True)
+    self.accel_boost_map_mode_toggle.show_description(True)
 
   def _set_current_panel(self, panel: PanelType):
     self._current_panel = panel
@@ -144,6 +164,8 @@ class CruiseLayout(Widget):
           self.icbm_toggle.show_description(True)
 
       self.accel_boost_toggle.action_item.set_enabled(has_long)
+      self.accel_boost_map_mode_toggle.action_item.set_enabled(has_long)
+      self.accel_boost_map_min_speed_option.action_item.set_enabled(has_long)
 
       if has_long or has_icbm:
         self.custom_acc_toggle.action_item.set_enabled(((has_long and not ui_state.CP.pcmCruise) or has_icbm) and ui_state.is_offroad())
@@ -151,9 +173,13 @@ class CruiseLayout(Widget):
         self.scc_m_toggle.action_item.set_enabled(True)
       else:
         ui_state.params.remove("CustomAccIncrementsEnabled")
+        ui_state.params.remove("AccelBoostSPMapMode")
+        ui_state.params.remove("AccelBoostSPMapMinSpeed")
         ui_state.params.remove("SmartCruiseControlVision")
         ui_state.params.remove("SmartCruiseControlMap")
         self.custom_acc_toggle.action_item.set_enabled(False)
+        self.accel_boost_map_mode_toggle.action_item.set_enabled(False)
+        self.accel_boost_map_min_speed_option.action_item.set_enabled(False)
         self.scc_v_toggle.action_item.set_enabled(False)
         self.scc_m_toggle.action_item.set_enabled(False)
 
@@ -161,6 +187,10 @@ class CruiseLayout(Widget):
       has_icbm = has_long = False
       self.icbm_toggle.action_item.set_enabled(False)
       self.accel_boost_toggle.action_item.set_enabled(False)
+      self.accel_boost_map_mode_toggle.action_item.set_enabled(False)
+      self.accel_boost_map_min_speed_option.action_item.set_enabled(False)
+      ui_state.params.remove("AccelBoostSPMapMode")
+      ui_state.params.remove("AccelBoostSPMapMinSpeed")
       self.icbm_toggle.set_description(tr(ONROAD_ONLY_DESCRIPTION))
 
     show_custom_acc_desc = False
@@ -186,6 +216,17 @@ class CruiseLayout(Widget):
         self.custom_acc_toggle.show_description(True)
 
     self._on_custom_acc_toggle(self.custom_acc_toggle.action_item.get_state())
+    self._on_accel_boost_toggle(self.accel_boost_toggle.action_item.get_state())
+
+  def _on_accel_boost_toggle(self, state):
+    self.accel_boost_map_mode_toggle.set_visible(state)
+    self.accel_boost_map_min_speed_option.set_visible(state and self.accel_boost_map_mode_toggle.action_item.get_state())
+    self.accel_boost_map_mode_toggle.action_item.set_enabled(self.accel_boost_toggle.action_item.enabled)
+    self.accel_boost_map_min_speed_option.action_item.set_enabled(self.accel_boost_toggle.action_item.enabled)
+
+  def _on_accel_boost_map_mode_toggle(self, state):
+    self.accel_boost_map_min_speed_option.set_visible(self.accel_boost_toggle.action_item.get_state() and state)
+    self.accel_boost_map_min_speed_option.action_item.set_enabled(self.accel_boost_toggle.action_item.enabled)
 
   def _on_custom_acc_toggle(self, state):
     self.custom_acc_short_increment.set_visible(state)
