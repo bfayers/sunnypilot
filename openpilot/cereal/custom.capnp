@@ -360,6 +360,8 @@ struct OnroadEventSP @0xda96579883444c35 {
     e2eChime @23;
     laneChangeRoadEdge @24;
     bigModelReady @25;
+    bigModelAvailable @26;
+    bigModelLinkLost @27;
   }
 }
 
@@ -475,6 +477,22 @@ struct ModelDataV2SP @0xa1680744031fdb2d {
   blendfulLeftProb @7 :Float32;
   blendfulRightProb @8 :Float32;
   blendfulLaneWidth @9 :Float32;
+
+  bigModelAvailableDEPRECATED @10 :Bool;  # acceleratorState ready says it; ordinal kept for old logs
+
+  # Runtime state of an off-board accelerator (sunnypilot/accelerators). Offroad
+  # progress stays in the AcceleratorProgress param; telemetry waits for a customReserved slot.
+  acceleratorState @11 :AcceleratorState;
+  acceleratorNameDEPRECATED @12 :Text;  # always jetlink; ordinal kept for old logs
+
+  enum AcceleratorState {
+    none @0;
+    joining @1;
+    running @2;
+    retrying @3;
+    unavailable @4;
+    ready @5;      # link up, engine loaded, waiting for a window to switch
+  }
 
   enum TurnDirection {
     none @0;
