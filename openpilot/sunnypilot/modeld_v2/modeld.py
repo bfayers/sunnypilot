@@ -35,7 +35,7 @@ from openpilot.common.realtime import config_realtime_process, DT_MDL
 from openpilot.common.transformations.camera import DEVICE_CAMERAS
 from openpilot.common.transformations.model import get_warp_matrix
 from openpilot.selfdrive.controls.lib.desire_helper import DesireHelper
-from openpilot.selfdrive.controls.lib.drive_helpers import get_accel_from_plan, smooth_value
+from openpilot.selfdrive.controls.lib.drive_helpers import get_accel_from_plan, get_accel_from_plan_horizon, should_stop, smooth_value
 from openpilot.selfdrive.modeld.modeld import ChestnutGpuState
 
 from openpilot.sunnypilot.modeld_v2.fill_model_msg import fill_model_msg, fill_pose_msg, PublishState, get_curvature_from_output
@@ -141,12 +141,14 @@ class ModelState(ModelStateBase):
 
     self.parser = Parser()
     self.prev_desire = np.zeros(self.constants.DESIRE_LEN, dtype=np.float32)
+    self.plan_offset = FirstOrderFilter(0.0, 3.0, DT_MDL)
 
   def warmup(self) -> None:
     dummy_frames, transforms, dummy_inputs = self.adapter.get_dummy_inputs()
     self.run(dummy_frames, transforms, dummy_inputs)
     self.adapter.reset_warmup_buffers()
     self.prev_desire[:] = 0
+    self.plan_offset.x = 0.0
 
   @property
   def mlsim(self) -> bool:
@@ -231,22 +233,42 @@ class ModelState(ModelStateBase):
 
   def get_action_from_model(self, model_output: dict[str, np.ndarray], prev_action: log.ModelDataV2.Action,
                             lat_action_t: float, long_action_t: float, v_ego: float,
-                            blendful: Callable[[float], float] | None = None) -> log.ModelDataV2.Action:
-    if 'action' not in model_output:
-      plan = model_output['plan'][0]
-      desired_accel = get_accel_from_plan(plan[:, Plan.VELOCITY][:, 0], plan[:, Plan.ACCELERATION][:, 0], self.constants.T_IDXS,
-                                          action_t=long_action_t)
+                            blendful: Callable[[float], float] | None = None,
+                            plan_offset: FirstOrderFilter | None = None) -> log.ModelDataV2.Action:
+    if plan_offset is None:
+      if not hasattr(self, 'plan_offset') or self.plan_offset is None:
+        self.plan_offset = FirstOrderFilter(0.0, 3.0, DT_MDL)
+      plan_offset = self.plan_offset
 
+    plan = model_output['plan'][0]
+    plan_stds = model_output['plan_stds'][0] if 'plan_stds' in model_output else np.zeros_like(plan)
+    action_accel = model_output['action'][0, 1] if 'action' in model_output else None
+
+    a_plan = get_accel_from_plan(plan[:, Plan.VELOCITY][:, 0], plan[:, Plan.ACCELERATION][:, 0], self.constants.T_IDXS,
+                                 action_t=long_action_t)
+    if action_accel is not None:
+      # the plan is off-policy, so it drifts above the speed the road needs. keep its changes, but the action's level
+      a_plan -= plan_offset.update(a_plan - action_accel)
+    # long uses the whole plan to slow down early, also for models with an action
+    desired_accel = get_accel_from_plan_horizon(a_plan,
+                                                plan[:, Plan.VELOCITY][:, 0],
+                                                plan[:, Plan.ACCELERATION][:, 0],
+                                                plan[:, Plan.POSITION][:, 0],
+                                                plan[:, Plan.POSITION][:, 1],
+                                                plan_stds[:, Plan.POSITION][:, 0],
+                                                np.array(self.constants.T_IDXS),
+                                                long_action_t)
+
+    if 'action' not in model_output:
       curvature_plan = (plan + (self.PLANPLUS_CONTROL - 1.0) * model_output['planplus'][0]
                         if 'planplus' in model_output and self.PLANPLUS_CONTROL != 1.0 else plan)
       desired_curvature = get_curvature_from_output(model_output, curvature_plan, v_ego, lat_action_t, self.mlsim)
     else:
-      desired_accel = model_output['action'][0, 1]
       desired_curvature = model_output['action'][0, 0] / (max(2.5, v_ego))**2
     if blendful is not None:
       desired_curvature += blendful(desired_curvature)
 
-    stop = v_ego < 0.3 and desired_accel < 0.1
+    stop = should_stop(v_ego, desired_accel)
     desired_accel = smooth_value(desired_accel, prev_action.desiredAcceleration, self.LONG_SMOOTH_SECONDS)
 
     if self.generation is not None and self.generation >= 10: # smooth curvature for post FOF models
@@ -255,7 +277,10 @@ class ModelState(ModelStateBase):
       else:
         desired_curvature = prev_action.desiredCurvature
 
-    return log.ModelDataV2.Action(desiredCurvature=float(desired_curvature), desiredAcceleration=float(desired_accel), shouldStop=bool(stop))
+    return log.ModelDataV2.Action(desiredCurvature=float(desired_curvature),
+                                  desiredAcceleration=float(desired_accel),
+                                  shouldStop=bool(stop),
+                                  actionAcceleration=float(action_accel if action_accel is not None else float('nan')))
 
 
 def main(demo=False):
@@ -367,6 +392,7 @@ def main(demo=False):
   # TODO Move smooth seconds to action function
   long_delay = CP.longitudinalActuatorDelay + model.LONG_SMOOTH_SECONDS
   prev_action = log.ModelDataV2.Action()
+  plan_offset = FirstOrderFilter(0.0, 3.0, DT_MDL)
 
   DH = DesireHelper()
   meta_constants = load_meta_constants()
@@ -492,7 +518,8 @@ def main(demo=False):
         prev_action.desiredCurvature = sm['controlsState'].curvature
       blendful_active = desire == log.Desire.none and DH.lane_change_state == log.LaneChangeState.off
       action = model.get_action_from_model(model_output, prev_action, lat_action_t, long_action_t, v_ego,
-                                           partial(blendful.update, model_output, v_ego, blendful_active, enabled=blendful_enabled))
+                                           partial(blendful.update, model_output, v_ego, blendful_active, enabled=blendful_enabled),
+                                           plan_offset)
       prev_action = action
       fill_model_msg(drivingdata_send, modelv2_send, model_output, action,
                      publish_state, meta_main.frame_id, meta_extra.frame_id, frame_id,
