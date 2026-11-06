@@ -150,6 +150,8 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
 
     // --- sunnypilot params --- //
     {"AccelBoostSP", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"AccelBoostSPMapMode", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"AccelBoostSPMapMinSpeed", {PERSISTENT | BACKUP, INT, "50"}},
     {"ApiCache_DriveStats", {PERSISTENT, JSON}},
     {"AutoLaneChangeBsmDelay", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"AutoLaneChangeTimer", {PERSISTENT | BACKUP, INT, "0"}},

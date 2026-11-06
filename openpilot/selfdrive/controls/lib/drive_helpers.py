@@ -54,6 +54,18 @@ def get_accel_from_plan(speeds, accels, t_idxs, action_t=DT_MDL):
     a_target = 0.0
   return a_target
 
+def get_accel_from_plan_horizon(a_now, speeds, accels, x, y, x_stds, t_idxs, action_t):
+  # distance along the path, x alone is short in curves
+  dist = x[0] + np.concatenate(([0.0], np.cumsum(np.hypot(np.diff(x), np.diff(y)))))
+  ahead = t_idxs >= 2.0
+  t = t_idxs[ahead]
+  # where we get to if the current accel holds until the new one acts after action_t
+  x_hold = speeds[0] * t + accels[0] * action_t * (t - action_t / 2)
+  # slow down early enough to not pass where the plan expects to be, with its uncertainty as slack
+  a_slow = min(np.min(2 * (dist[ahead] + 1.5 * x_stds[ahead] - x_hold) / (t - action_t) ** 2), 0.0)
+  # stop accelerating first if the plan slows down later
+  return max(a_now, 0.0) * np.interp(-a_slow, [0.0, 0.3], [1.0, 0.0]) + min(a_now, a_slow)
+
 def curv_from_psis(psi_target, psi_rate, vego, action_t):
   vego = np.clip(vego, MIN_SPEED, np.inf)
   curv_from_psi = psi_target / (vego * action_t)

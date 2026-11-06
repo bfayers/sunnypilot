@@ -1159,6 +1159,7 @@ struct ModelDataV2 {
     desiredCurvature @0 :Float32;
     desiredAcceleration @1 :Float32;
     shouldStop @2 :Bool;
+    actionAcceleration @3 :Float32;  # the model's action accel, not smoothed, before using the plan
   }
 
   deprecated :group {
@@ -1251,6 +1252,7 @@ struct LongitudinalPlan @0xe00b5b3eba12876c {
     lead1 @2;
     lead2 @3;
     e2e @4;
+    curve @5;
   }
 
 

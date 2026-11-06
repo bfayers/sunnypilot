@@ -72,3 +72,32 @@ class TestRecoveryPower(OpenpilotTestCase):
       # For the below, yes, I know this isn't the same slicing as fillmodlmsg. This is to show that the values are only scaled on curv
       expected_curv_plan_vel = plan[0, :, Plan.VELOCITY][:, 0] + control * planplus[0, :, Plan.VELOCITY][:, 0]
       np.testing.assert_allclose(recorded_curv_plans[0][:, Plan.VELOCITY][:, 0], expected_curv_plan_vel, rtol=1e-5, atol=1e-6)
+
+  def test_action_accel(self):
+    state: Any = MockStruct(
+      PLANPLUS_CONTROL=1.0,
+      LONG_SMOOTH_SECONDS=0.0,
+      LAT_SMOOTH_SECONDS=0.0,
+      MIN_LAT_CONTROL_SPEED=0.3,
+      mlsim=False,
+      generation=12,
+      constants=MockStruct(T_IDXS=np.arange(33), DESIRE_LEN=8)
+    )
+    prev_action = log.ModelDataV2.Action()
+    plan = np.zeros((1, 33, 15), dtype=np.float32)
+
+    # With action
+    model_output = {
+      'plan': plan,
+      'action': np.array([[0.0, 1.25]], dtype=np.float32),
+    }
+    action = ModelState.get_action_from_model(state, model_output, prev_action, 0.1, 0.1, 10.0)
+    self.assertAlmostEqual(action.actionAcceleration, 1.25, places=4)
+
+    # Without action
+    model_output_no_action = {
+      'plan': plan,
+    }
+    action_no_act = ModelState.get_action_from_model(state, model_output_no_action, prev_action, 0.1, 0.1, 10.0)
+    self.assertTrue(np.isnan(action_no_act.actionAcceleration))
+
