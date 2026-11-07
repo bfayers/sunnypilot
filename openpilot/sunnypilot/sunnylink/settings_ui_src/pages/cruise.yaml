@@ -36,6 +36,32 @@ sections:
     description: "Adds a small push on top of sunnypilot's own acceleration, stronger in Aggressive and gentler in Relaxed. Eases off in curves and when sunnypilot slows or stops. Never goes past your set speed, and lead-car following still comes first."
     enablement:
     - $ref: '#/macros/longitudinal'
+  - key: AccelBoostSPMapMode
+    widget: toggle
+    title: Acceleration Boost - Map Mode
+    description: Only enable Acceleration Boost on roads with a speed limit at or above the configured minimum.
+    visibility:
+    - type: param
+      key: AccelBoostSP
+      equals: true
+    enablement:
+    - $ref: '#/macros/longitudinal'
+  - key: AccelBoostSPMapMinSpeed
+    widget: option
+    title: Acceleration Boost Map - Min Speed
+    description: Minimum road speed limit to allow Acceleration Boost in Map mode.
+    min: 20
+    max: 120
+    step: 5
+    visibility:
+    - type: param
+      key: AccelBoostSP
+      equals: true
+    - type: param
+      key: AccelBoostSPMapMode
+      equals: true
+    enablement:
+    - $ref: '#/macros/longitudinal'
   - key: IntelligentCruiseButtonManagement
     widget: toggle
     title: Intelligent Cruise Button Management (ICBM) (Alpha)
