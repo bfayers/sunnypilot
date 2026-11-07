@@ -70,6 +70,7 @@ def sp_stats(end_event):
     'ModelManager_ActiveBundle',
     'ModelManager_ActiveBundleChestnut',
     'ModelManager_Favs',
+    'JetlinkLink',
     'EnableSunnylinkUploader',
     'SunnylinkEnabled',
     'InstallDate',
