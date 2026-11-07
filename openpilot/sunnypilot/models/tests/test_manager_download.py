@@ -32,6 +32,19 @@ from openpilot.sunnypilot.models.helpers import (ACTIVE_BUNDLE_KEYS, get_active_
                                                   resolve_bundle_by_ref, validate_active_bundles)
 from openpilot.sunnypilot.models.manager import DownloadCancelled, ModelManagerSP
 
+# the model manager's catalog as fetched, never jetlink's list in its place
+# (jetlink_adapter.big_catalog): that depends on the checkout and reaches the network
+_catalog_as_fetched = mock.patch("openpilot.sunnypilot.jetlink_adapter.lists_big_models", return_value=False)
+
+
+def setUpModule():
+  _catalog_as_fetched.start()
+
+
+def tearDownModule():
+  _catalog_as_fetched.stop()
+
+
 FILE_NAME = 'driving_test_tinygrad.pkl'
 # fixed-seed random bytes: every piece differs, so a misplaced piece changes the file
 WHOLE_BODY = random.Random(0).randbytes(10_240)
@@ -333,6 +346,7 @@ class TestProcessArtifact(ManagerDownloadTestBase):
         self._bundle.ref = f"{source}-ref"
         self._bundle.minimumSelectorVersion = helpers.REQUIRED_JSON_VERSION
         self.manager.params, store = self._make_params_with_store()
+        self.manager.chestnut_present = True
         self.download_bundle(source)
         assert ACTIVE_BUNDLE_KEYS[source] in store and ACTIVE_BUNDLE_KEYS[other] not in store
         assert self.manager.selected_bundle.status == ds.downloaded
