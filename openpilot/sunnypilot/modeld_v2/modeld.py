@@ -241,26 +241,31 @@ class ModelState(ModelStateBase):
         self.plan_offset = FirstOrderFilter(0.0, 3.0, DT_MDL)
       plan_offset = self.plan_offset
 
-    plan = model_output['plan'][0]
-    plan_stds = model_output['plan_stds'][0] if 'plan_stds' in model_output else np.zeros_like(plan)
     action_accel = model_output['action'][0, 1] if 'action' in model_output else None
+    if 'plan' in model_output:
+      plan = model_output['plan'][0]
+      plan_stds = model_output['plan_stds'][0] if 'plan_stds' in model_output else np.zeros_like(plan)
 
-    a_plan = get_accel_from_plan(plan[:, Plan.VELOCITY][:, 0], plan[:, Plan.ACCELERATION][:, 0], self.constants.T_IDXS,
-                                 action_t=long_action_t)
-    if action_accel is not None:
-      # the plan is off-policy, so it drifts above the speed the road needs. keep its changes, but the action's level
-      a_plan -= plan_offset.update(a_plan - action_accel)
-    # long uses the whole plan to slow down early, also for models with an action
-    desired_accel = get_accel_from_plan_horizon(a_plan,
-                                                plan[:, Plan.VELOCITY][:, 0],
-                                                plan[:, Plan.ACCELERATION][:, 0],
-                                                plan[:, Plan.POSITION][:, 0],
-                                                plan[:, Plan.POSITION][:, 1],
-                                                plan_stds[:, Plan.POSITION][:, 0],
-                                                np.array(self.constants.T_IDXS),
-                                                long_action_t)
+      a_plan = get_accel_from_plan(plan[:, Plan.VELOCITY][:, 0], plan[:, Plan.ACCELERATION][:, 0], self.constants.T_IDXS,
+                                   action_t=long_action_t)
+      if action_accel is not None:
+        # the plan is off-policy, so it drifts above the speed the road needs. keep its changes, but the action's level
+        a_plan -= plan_offset.update(a_plan - action_accel)
+      # long uses the whole plan to slow down early, also for models with an action
+      desired_accel = get_accel_from_plan_horizon(a_plan,
+                                                  plan[:, Plan.VELOCITY][:, 0],
+                                                  plan[:, Plan.ACCELERATION][:, 0],
+                                                  plan[:, Plan.POSITION][:, 0],
+                                                  plan[:, Plan.POSITION][:, 1],
+                                                  plan_stds[:, Plan.POSITION][:, 0],
+                                                  np.array(self.constants.T_IDXS),
+                                                  long_action_t)
+    else:
+      plan = None
+      desired_accel = action_accel if action_accel is not None else 0.0
 
     if 'action' not in model_output:
+      assert plan is not None
       curvature_plan = (plan + (self.PLANPLUS_CONTROL - 1.0) * model_output['planplus'][0]
                         if 'planplus' in model_output and self.PLANPLUS_CONTROL != 1.0 else plan)
       desired_curvature = get_curvature_from_output(model_output, curvature_plan, v_ego, lat_action_t, self.mlsim)

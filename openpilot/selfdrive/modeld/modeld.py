@@ -56,23 +56,33 @@ BIG_MODEL_TIMEOUT = 60
 
 def get_action_from_model(model_output: dict[str, np.ndarray], prev_action: log.ModelDataV2.Action,
                           lat_action_t: float, long_action_t: float, v_ego: float,
-                          plan_offset: FirstOrderFilter) -> log.ModelDataV2.Action:
-  plan, plan_stds = model_output['plan'][0], model_output['plan_stds'][0]
+                          plan_offset: FirstOrderFilter | None = None) -> log.ModelDataV2.Action:
+  if plan_offset is None:
+    plan_offset = FirstOrderFilter(0.0, 3.0, DT_MDL)
+
   action_accel = model_output['action'][0,1] if 'action' in model_output else None
-  a_plan = get_accel_from_plan(plan[:,Plan.VELOCITY][:,0], plan[:,Plan.ACCELERATION][:,0], ModelConstants.T_IDXS, action_t=long_action_t)
-  if action_accel is not None:
-    # the plan is off-policy, so it drifts above the speed the road needs. keep its changes, but the action's level
-    a_plan -= plan_offset.update(a_plan - action_accel)
-  # long uses the whole plan to slow down early, also for models with an action
-  desired_accel = get_accel_from_plan_horizon(a_plan,
-                                              plan[:,Plan.VELOCITY][:,0],
-                                              plan[:,Plan.ACCELERATION][:,0],
-                                              plan[:,Plan.POSITION][:,0],
-                                              plan[:,Plan.POSITION][:,1],
-                                              plan_stds[:,Plan.POSITION][:,0],
-                                              np.array(ModelConstants.T_IDXS),
-                                              long_action_t)
+  if 'plan' in model_output:
+    plan = model_output['plan'][0]
+    plan_stds = model_output['plan_stds'][0] if 'plan_stds' in model_output else np.zeros_like(plan)
+    a_plan = get_accel_from_plan(plan[:,Plan.VELOCITY][:,0], plan[:,Plan.ACCELERATION][:,0], ModelConstants.T_IDXS, action_t=long_action_t)
+    if action_accel is not None:
+      # the plan is off-policy, so it drifts above the speed the road needs. keep its changes, but the action's level
+      a_plan -= plan_offset.update(a_plan - action_accel)
+    # long uses the whole plan to slow down early, also for models with an action
+    desired_accel = get_accel_from_plan_horizon(a_plan,
+                                                plan[:,Plan.VELOCITY][:,0],
+                                                plan[:,Plan.ACCELERATION][:,0],
+                                                plan[:,Plan.POSITION][:,0],
+                                                plan[:,Plan.POSITION][:,1],
+                                                plan_stds[:,Plan.POSITION][:,0],
+                                                np.array(ModelConstants.T_IDXS),
+                                                long_action_t)
+  else:
+    plan = None
+    desired_accel = action_accel if action_accel is not None else 0.0
+
   if 'action' not in model_output:
+    assert plan is not None
     desired_curvature = get_curvature_from_plan(plan[:,Plan.T_FROM_CURRENT_EULER][:,2],
                                                 plan[:,Plan.ORIENTATION_RATE][:,2],
                                                 ModelConstants.T_IDXS,

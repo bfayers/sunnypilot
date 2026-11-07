@@ -208,6 +208,10 @@ class TestModeld(OpenpilotTestCase):
       blendful.assert_called_once_with(stock.desiredCurvature)
       self.assertAlmostEqual(blended.desiredCurvature, stock.desiredCurvature + (0.0005 if v_ego > modeld.MIN_LAT_CONTROL_SPEED else 0.0), places=6)
       self.assertEqual(blended.desiredAcceleration, stock.desiredAcceleration)
+      from openpilot.common.filter_simple import FirstOrderFilter
+      plan_offset = FirstOrderFilter(0.0, 3.0, 0.05)
+      blended_offset = action(output, prev, 0.3, 0.3, v_ego, None, plan_offset)
+      self.assertEqual(blended_offset.desiredAcceleration, stock.desiredAcceleration)
 
   def test_in_control_shuts_the_swap_window_on_anything_in_control_or_unknown(self):
     op = Adapter()
