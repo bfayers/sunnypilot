@@ -161,10 +161,10 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     // survive a reboot, or every ignition cycle would rebuild a multi-minute engine.
     {"JetlinkLink", {PERSISTENT | BACKUP, INT, "0"}},
     {"JetlinkSpec", {PERSISTENT, JSON}},
-    {"JetlinkModelPointers", {PERSISTENT, JSON}},
     // an iPhone on a direct cable charges from the comma; off by default, some
     // lose the link once the comma powers them
     {"JetlinkChargePhone", {PERSISTENT, BOOL, "0"}},
+    {"ModelManager_CarryOver", {PERSISTENT, JSON}},  // model picks waiting to be re-queued after a selector bump or rebuild
     {"ApiCache_DriveStats", {PERSISTENT, JSON}},
     {"AutoLaneChangeBsmDelay", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"AutoLaneChangeTimer", {PERSISTENT | BACKUP, INT, "0"}},

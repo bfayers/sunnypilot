@@ -32,10 +32,9 @@ from openpilot.sunnypilot.models.helpers import (ACTIVE_BUNDLE_KEYS, get_active_
                                                   resolve_bundle_by_ref, validate_active_bundles)
 from openpilot.sunnypilot.models.manager import DownloadCancelled, ModelManagerSP
 
-# the model manager's catalog as fetched, never the one an installed jetlink extends
-# with newer catalogs (jetlink_adapter.extend_catalog): that depends on the checkout and
-# reaches the network
-_catalog_as_fetched = mock.patch("openpilot.sunnypilot.jetlink_adapter.should_extend_catalog", return_value=False)
+# the model manager's catalog as fetched, never jetlink's list in its place
+# (jetlink_adapter.big_catalog): that depends on the checkout and reaches the network
+_catalog_as_fetched = mock.patch("openpilot.sunnypilot.jetlink_adapter.lists_big_models", return_value=False)
 
 
 def setUpModule():
